@@ -180,11 +180,16 @@
     padding:0;
   }
   thead th.class-cell{width:24px;}
-  /* 班級文字用 sticky 貼在表頭下方,即使該班學生很多、合併儲存格拉得很長,
-     捲動時班級名稱仍會跟著停留在可視範圍附近,不會整個滑到看不見。 */
+  /* 班級文字置中顯示在合併儲存格裡。原本這裡用 position:sticky 想讓班級名稱
+     捲動時停留在可視範圍附近,但 sticky 元素放在有 rowSpan 的表格儲存格裡,
+     在 iOS Safari 會有嚴重的版面錯誤:當某個班級的學生很少(rowSpan 很短,
+     例如只有 1、2 位)、而 sticky 的 top 偏移量(表頭高度)又比這個儲存格本身
+     還高時,瀏覽器會把那段沒地方顯示的偏移量誤算進儲存格高度裡,結果就是
+     那一小群學生(通常是名單最前面幾號)被撐出一大塊空白、整個看不見——也就是
+     使用者回報「1號、2號同學被白色塊遮住」的原因。改成單純置中顯示,不再
+     使用 sticky,徹底避開這個問題;代價只是捲動很長的班級時,班級名稱不會
+     跟著停留在畫面附近,但正確性優先。 */
   .class-label{
-    position:sticky;
-    top:var(--sticky-below-head, 40px);
     display:block;
     writing-mode:vertical-rl;
     text-orientation:upright;
@@ -218,13 +223,18 @@
     text-overflow:ellipsis;
     display:none;
   }
+  :root{
+    --dot-size:27px;
+    --dot-icon-size:13px;
+    --dot-txt-size:12.5px;
+  }
   .status-dot{
-    width:27px;height:27px;border-radius:50%;border:1.6px solid var(--brown);background:#fff;
+    width:var(--dot-size);height:var(--dot-size);border-radius:50%;border:1.6px solid var(--brown);background:#fff;
     cursor:pointer;margin:0 auto;display:flex;align-items:center;justify-content:center;
     color:var(--brown);transition:transform 0.08s ease, background 0.08s ease;
   }
-  .status-dot svg{width:13px;height:13px;}
-  .status-dot .txt-icon{font-size:12.5px;font-weight:900;line-height:1;}
+  .status-dot svg{width:var(--dot-icon-size);height:var(--dot-icon-size);}
+  .status-dot .txt-icon{font-size:var(--dot-txt-size);font-weight:900;line-height:1;}
   .status-dot:hover{transform:scale(1.12);}
   .status-dot.active{border-color:var(--brown);box-shadow:2px 2px 0 rgba(91,58,34,0.22);}
   .status-dot.active.曠課{background:var(--st-red);color:#fff;}
@@ -267,23 +277,35 @@
   .modal details.note .note-body{margin-top:10px;}
   .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
 
-  /* 手機橫向時,螢幕寬度變多、高度變少:把握多出來的寬度放大姓名欄的字,
-     方便老花眼的老師閱讀;座號/班級欄維持原本寬度不搶空間,曠課~遲到
-     七個狀態欄則縮窄間距,讓圖示彼此靠緊,不會因為姓名變寬而散得更開。
+  /* 手機橫向時,螢幕寬度變多、高度變少:把文字和圖示都大幅放大,方便老花眼
+     的老師閱讀與點按。改用 table-layout:auto,讓每一欄依照放大後的內容自動
+     撐開寬度,不再用 fixed 版面把七個狀態欄硬塞進固定比例——那樣寬度不夠時
+     圖示會被裁切或彼此重疊蓋住。欄位撐開後如果總寬度超過螢幕,交給
+     .table-scroll 原本就有的左右捲動處理,寧可讓老師多滑一下,也不要有任何
+     文字或圖示被遮住看不到。
      用 max-height 而非單純 orientation,是為了只鎖定手機橫放(螢幕矮),
      避免一般桌機瀏覽器視窗也被誤判成「橫向」。 */
   @media (orientation:landscape) and (max-height:520px){
+    table{table-layout:auto;}
+    thead th{font-size:22px;padding:10px 6px;}
+    .class-cell{width:auto;min-width:44px;}
+    thead th.class-cell{width:auto;min-width:44px;}
+    .class-label{font-size:22px;letter-spacing:2px;padding:12px 4px;}
+    .no-cell{width:auto;min-width:46px;font-size:26px;font-weight:700;}
+    thead th.no-cell{width:auto;min-width:46px;}
     .name-cell{
-      font-size:19px;font-weight:700;
-      width:84px;max-width:84px;
-      padding-left:4px;padding-right:2px;
+      font-size:40px;font-weight:700;
+      width:auto;max-width:none;min-width:150px;
+      padding:10px 8px;
     }
-    thead th.name-cell{width:84px;font-size:12.5px;}
-    .no-cell{width:24px;}
-    thead th.no-cell{width:24px;}
-    .status-col{padding:4px 0;}
-    .status-dot{width:25px;height:25px;}
-    .name-tooltip{font-size:17px;padding:9px 14px;}
+    thead th.name-cell{width:auto;min-width:150px;}
+    .status-col{padding:8px 10px;}
+    :root{
+      --dot-size:80px;
+      --dot-icon-size:40px;
+      --dot-txt-size:38px;
+    }
+    .name-tooltip{font-size:34px;padding:16px 22px;}
   }
 </style>
 </head>
@@ -652,18 +674,6 @@ function hideNameTooltip(){
 document.addEventListener('click', ()=> hideNameTooltip());
 document.addEventListener('scroll', ()=> hideNameTooltip(), true);
 
-// 量測目前表頭(含系統狀態列預留高度)實際渲染出的高度,讓「班級」欄的
-// sticky 文字知道要停在多下面,才不會被表頭蓋住。表頭列高度固定,不受
-// 資料內容影響,所以只需要在渲染完/尺寸變動時重新量一次即可。
-function updateStickyOffsets(){
-  const thead = document.querySelector('#tableScroll thead');
-  if(!thead) return;
-  const h = thead.getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--sticky-below-head', `calc(${h}px + var(--safe-top))`);
-}
-window.addEventListener('resize', updateStickyOffsets);
-window.addEventListener('orientationchange', updateStickyOffsets);
-
 function renderAttendance(){
   const students = allStudentsSorted();
   const hasRoster = students.length > 0;
@@ -727,7 +737,6 @@ function renderAttendance(){
   });
 
   renderSummary();
-  requestAnimationFrame(updateStickyOffsets);
 }
 
 // Summary always reflects ALL classes in the roster (merged), since that's
