@@ -1,0 +1,15 @@
+{
+  "name": "早自習點名簿",
+  "short_name": "早點名",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFF6E3",
+  "theme_color": "#EF9A3B",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

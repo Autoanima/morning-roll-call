@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>早自習點名簿</title>
+
+<!-- iPhone: add to Home Screen as a standalone full-screen app -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="早點名">
+<meta name="theme-color" content="#EF9A3B">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --brown:#5B3A22;
+    --coffee:#8F5337;
+    --brown-soft:#8C6B4F;
+    --cream:#FFF6E3;
+    --card:#FFFDF6;
+    --tan-pale:#FBEBD0;
+    --sun-yellow:#F6C744;
+    --warm-orange:#EF9A3B;
+    --ink:#4A2E1A;
+    --ink-soft:#8C6B4F;
+    --line:#5B3A22;
+    --line-soft:#EFE0C4;
+    --st-red:#D9503F;
+    --st-orange:#EF9A3B;
+    --st-yellow:#F0C23E;
+    --st-green:#5C9A72;
+    --st-blue:#5B84AC;
+    --st-purple:#8B6BA8;
+    --st-black:#3A2A1E;
+    --radius:18px;
+    --shadow:4px 4px 0 rgba(91,58,34,0.16);
+    --shadow-sm:3px 3px 0 rgba(91,58,34,0.16);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--cream);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+    line-height:1.5;
+  }
+  .serif{font-family:inherit;}
+  header{
+    background:var(--coffee);
+    color:var(--sun-yellow);
+    padding:20px 28px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    border-bottom:4px solid var(--brown);
+  }
+  header h1{
+    font-size:26px;margin:0;font-weight:900;letter-spacing:1px;
+    color:var(--sun-yellow);
+    text-shadow:
+      1px 0 0 #FFFFFF, -1px 0 0 #FFFFFF, 0 1px 0 #FFFFFF, 0 -1px 0 #FFFFFF,
+      1px 1px 0 #FFFFFF, -1px 1px 0 #FFFFFF, 1px -1px 0 #FFFFFF, -1px -1px 0 #FFFFFF,
+      0 2px 3px rgba(0,0,0,0.25);
+  }
+  header .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  header input[type=date]{
+    background:#fff;
+    border:2.5px solid var(--brown);
+    color:var(--brown);
+    padding:7px 10px;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  .gear-btn{
+    background:var(--sun-yellow);
+    border:2.5px solid var(--brown);
+    color:var(--brown);
+    width:38px;height:38px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:17px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:var(--shadow-sm);
+    transition:transform 0.08s ease;
+  }
+  .gear-btn:hover{transform:translate(-1px,-1px);}
+  main{max-width:980px;margin:0 auto;padding:28px 20px 80px;}
+  .card{
+    background:var(--card);border:3px solid var(--brown);border-radius:var(--radius);
+    padding:24px;margin-bottom:22px;box-shadow:var(--shadow);
+  }
+  .card h2{font-size:18px;margin:0 0 6px;font-weight:800;color:var(--brown);}
+  .card p.hint{color:var(--ink-soft);font-size:13.5px;margin:0 0 16px;}
+  .upload-row{display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;align-items:center;}
+  input[type=file]{font-size:13.5px;}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:800;transition:transform 0.08s ease;}
+  .btn-primary{background:var(--warm-orange);color:#fff;border:2.5px solid var(--brown);box-shadow:var(--shadow-sm);}
+  .btn-primary:hover{transform:translate(-1px,-1px);}
+  .btn-secondary{background:#fff;color:var(--brown);border:2.5px solid var(--brown);box-shadow:var(--shadow-sm);}
+  .btn-secondary:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
+  .roster-summary{
+    display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;
+  }
+  .class-chip{
+    background:var(--tan-pale);border:2px solid var(--brown);border-radius:999px;
+    padding:5px 12px;font-size:13px;font-weight:700;color:var(--brown);
+  }
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-size:12.5px;color:var(--brown);font-weight:800;padding:9px 6px;
+    border-bottom:3px solid var(--brown);
+    position:sticky;top:0;background:var(--tan-pale);z-index:3;
+  }
+  thead th.status-col{text-align:center;width:56px;}
+  tbody td{padding:8px 6px;border-bottom:1.5px solid var(--line-soft);font-size:14.5px;vertical-align:middle;}
+  tbody tr:hover{background:rgba(239,154,59,0.08);}
+  tbody tr.class-stripe{background:rgba(239,154,59,0.06);}
+  tbody tr.class-stripe:hover{background:rgba(239,154,59,0.13);}
+  .no-cell{color:var(--ink-soft);font-variant-numeric:tabular-nums;width:44px;font-weight:600;}
+  .class-cell{
+    color:var(--brown);width:40px;font-size:13.5px;font-weight:800;
+    text-align:center;background:var(--tan-pale);
+    border-right:2.5px solid var(--brown);border-bottom:2.5px solid var(--brown);
+  }
+  tbody td.class-cell{
+    writing-mode:vertical-rl;
+    text-orientation:upright;
+    letter-spacing:2px;
+    padding:14px 4px;
+    white-space:nowrap;
+  }
+  .name-cell{font-weight:600;writing-mode:horizontal-tb;}
+  .legend{
+    display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px;
+    background:var(--tan-pale);border:2.5px solid var(--brown);border-radius:12px;padding:10px 14px;
+  }
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--brown);font-weight:700;}
+  .legend-item .icon-box{
+    width:24px;height:24px;border-radius:50%;border:2px solid var(--brown);background:#fff;
+    display:flex;align-items:center;justify-content:center;color:var(--brown);
+  }
+  .legend-item .icon-box svg{width:14px;height:14px;}
+  .status-dot{
+    width:32px;height:32px;border-radius:50%;border:2px solid var(--brown);background:#fff;
+    cursor:pointer;margin:0 auto;display:flex;align-items:center;justify-content:center;
+    color:var(--brown);transition:transform 0.08s ease, background 0.08s ease;
+  }
+  .status-dot svg{width:17px;height:17px;}
+  .status-dot .txt-icon{font-size:15px;font-weight:900;line-height:1;}
+  .status-dot:hover{transform:scale(1.12);}
+  .status-dot.active{border-color:var(--brown);box-shadow:2px 2px 0 rgba(91,58,34,0.22);}
+  .status-dot.active.曠課{background:var(--st-red);color:#fff;}
+  .status-dot.active.事假{background:var(--st-orange);color:#fff;}
+  .status-dot.active.病假{background:var(--st-yellow);color:var(--brown);}
+  .status-dot.active.出席{background:var(--st-green);color:#fff;}
+  .status-dot.active.公假{background:var(--st-blue);color:#fff;}
+  .status-dot.active.喪假{background:var(--st-purple);color:#fff;}
+  .status-dot.active.遲到{background:var(--st-black);color:#fff;}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .toolbar .count{font-size:13.5px;color:var(--ink-soft);font-weight:700;}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:16px 0 20px;}
+  .summary-item{background:#fff;border:2.5px solid var(--brown);border-radius:12px;padding:14px 12px;text-align:center;box-shadow:var(--shadow-sm);}
+  .summary-item .num{font-size:27px;font-weight:900;color:var(--brown);}
+  .summary-item .label{font-size:12.5px;color:var(--ink-soft);margin-top:2px;font-weight:700;}
+  .summary-item.st-曠課 .num{color:var(--st-red);}
+  .summary-item.st-事假 .num{color:var(--st-orange);}
+  .summary-item.st-病假 .num{color:#C9971F;}
+  .summary-item.st-出席 .num{color:var(--st-green);}
+  .summary-item.st-公假 .num{color:var(--st-blue);}
+  .summary-item.st-喪假 .num{color:var(--st-purple);}
+  .summary-item.st-遲到 .num{color:var(--st-black);}
+  .submit-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .submit-status{font-size:13.5px;color:var(--ink-soft);font-weight:600;}
+  .submit-status.ok{color:var(--st-green);}
+  .submit-status.err{color:var(--st-red);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(91,58,34,0.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card);border:3px solid var(--brown);border-radius:var(--radius);padding:26px;max-width:520px;width:100%;max-height:86vh;overflow-y:auto;box-shadow:6px 6px 0 rgba(91,58,34,0.22);}
+  .modal h2{margin-top:0;font-weight:800;color:var(--brown);}
+  .field-row{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin-bottom:10px;}
+  .field-row label{font-size:13.5px;color:var(--ink-soft);font-weight:700;}
+  .field-row input{border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .modal details.note{font-size:12.5px;color:var(--brown);background:var(--tan-pale);border:2px solid var(--brown);border-radius:10px;padding:10px 12px;margin-bottom:16px;}
+  .modal details.note summary{cursor:pointer;font-weight:700;list-style:none;}
+  .modal details.note summary::-webkit-details-marker{display:none;}
+  .modal details.note summary::before{content:'▸ ';}
+  .modal details.note[open] summary::before{content:'▾ ';}
+  .modal details.note .note-body{margin-top:10px;}
+  .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐓 早自習點名簿</h1>
+  <div class="meta">
+    <input type="date" id="dateInput">
+    <button class="gear-btn" id="settingsBtn" title="表單欄位設定">⚙</button>
+  </div>
+</header>
+
+<main>
+
+  <div class="card" id="rosterCard">
+    <h2>班級名單(.xlsx)</h2>
+    <p class="hint">上傳 Excel 檔,第一列為欄位名稱,需包含「班級」「座號」「姓名」三欄(欄位順序不拘)。上傳後會記住這份名單,下次不用重新上傳。</p>
+    <div class="upload-row">
+      <input type="file" id="xlsxFile" accept=".xlsx">
+      <button class="btn-secondary" id="clearRosterBtn">清空名單</button>
+    </div>
+    <div class="roster-summary" id="rosterSummary"></div>
+  </div>
+
+  <div class="card" id="attendanceCard" style="display:none;">
+    <div class="toolbar">
+      <h2 style="margin:0;">今日點名</h2>
+      <span class="count" id="rosterCount"></span>
+    </div>
+    <div class="legend" id="legend"></div>
+    <table>
+      <thead>
+        <tr>
+          <th class="class-cell">班級</th>
+          <th class="no-cell">座號</th>
+          <th>姓名</th>
+          <th class="status-col">曠課</th>
+          <th class="status-col">事假</th>
+          <th class="status-col">病假</th>
+          <th class="status-col">出席</th>
+          <th class="status-col">公假</th>
+          <th class="status-col">喪假</th>
+          <th class="status-col">遲到</th>
+        </tr>
+      </thead>
+      <tbody id="rosterBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="summaryCard" style="display:none;">
+    <h2>統計(合併所有班級)</h2>
+    <p class="hint">下面數字與清單會加總目前名單裡的所有班級,送出表單時就是用這份合併結果。</p>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="submit-row">
+      <button class="btn-primary" id="previewBtn">開啟預填表單(建議使用)</button>
+      <button class="btn-secondary" id="submitBtn">強制背景送出(不保證成功)</button>
+      <span class="submit-status" id="submitStatus"></span>
+    </div>
+  </div>
+
+</main>
+
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal">
+    <h2 class="serif">表單欄位設定</h2>
+    <div class="field-row"><label>表單網址</label><input type="text" id="cfgUrl" placeholder=".../formResponse"></div>
+    <div class="field-row"><label>應到人數</label><input type="text" id="cfgExpected" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>實到人數</label><input type="text" id="cfgPresent" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>公假</label><input type="text" id="cfgPublic" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>事假</label><input type="text" id="cfgPersonal" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>病假</label><input type="text" id="cfgSick" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>曠課</label><input type="text" id="cfgAbsent" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>遲到</label><input type="text" id="cfgLate" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>喪假</label><input type="text" id="cfgBereavement" placeholder="entry.xxxxxxx"></div>
+
+    <div class="field-row"><label>感染代碼</label><input type="text" id="cfgInfectionEntry" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row"><label>感染內容</label><input type="text" id="cfgInfectionValue" placeholder="無"></div>
+
+    <div class="field-row"><label>班導代碼</label><input type="text" id="cfgClassTeacherEntry" placeholder="entry.xxxxxxx"></div>
+    <div class="field-row" style="align-items:flex-start;">
+      <label>班級與導師</label>
+      <div style="width:100%;">
+        <select id="cfgClassTeacherSelect" style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;">
+        </select>
+        <input type="text" id="cfgClassTeacherCustom" placeholder="自行輸入班級與導師,如 195商一甲.李智威" style="display:none;width:100%;margin-top:6px;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;">
+      </div>
+    </div>
+
+    <div class="field-row" style="align-items:flex-start;">
+      <label>其他固定欄位</label>
+      <textarea id="cfgExtra" rows="4" style="border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;" placeholder="每行一組,例如:&#10;entry.111111111=on&#10;entry.222222222=高中職1年級"></textarea>
+    </div>
+
+    <details class="note">
+      <summary>使用說明(點此展開/收合)</summary>
+      <div class="note-body">
+        每個欄位對應 Google 表單裡的 entry 代碼,取得方式:打開表單填答頁,先隨便試填一次並送出,
+        在瀏覽器開發者工具(F12)的 Network 分頁找到 formResponse 請求的 Payload,裡面會列出每題的
+        <code>entry.數字</code> 名稱。哪個欄位你的表單沒有,留空即可,送出時會自動略過。<br><br>
+        <strong>公假/事假/病假/曠課/遲到/喪假</strong>這幾格會自動列出座號清單(而不是人數):
+        名單裡只有一個班級時直接列座號,如「3、7、12」;有多個班級時會分組列出,如
+        「商一甲:3、7;商一乙:2」。<br><br>
+        還有其他固定不變的題目(例如勾選方塊、班級選項、備註),填在「其他固定欄位」,格式為
+        <code>entry.代碼=值</code>,一行一組。<br><br>
+        <strong>注意:</strong>如果表單有要求登入驗證電子郵件,Google 會產生一次性防偽碼,背景送出多半
+        會被擋下來,建議優先使用「開啟預填表單」這個按鈕。
+      </div>
+    </details>
+    <details class="note">
+      <summary>快速貼上(點此展開/收合)</summary>
+      <div class="note-body">
+        <p style="margin:0 0 8px;">表單大改版、欄位代碼全部要換時,不用一格一格改——編輯下面這段文字
+        (目前已經幫你帶入現有設定),或直接整段換成新的對照內容,按「辨識並套用」,系統會自動比對
+        「應到人數」「實到人數」「公假」等文字,抓出旁邊的 entry 代碼填回上面的欄位;內容裡如果有
+        Google 表單網址,也會自動辨識並填入。</p>
+        <textarea id="cfgBulkPaste" rows="6" style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;"></textarea>
+        <button type="button" class="btn-secondary" id="parseBulkBtn" style="margin-top:8px;">辨識並套用到上面欄位</button>
+      </div>
+    </details>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" id="resetSettingsBtn">還原預設值</button>
+      <button class="btn-secondary" id="closeSettingsBtn">取消</button>
+      <button class="btn-primary" id="saveSettingsBtn">儲存設定</button>
+    </div>
+  </div>
+</div>
+
+<iframe name="hiddenSubmitFrame" style="display:none;"></iframe>
+
+<script>
+const STATUSES = ['曠課','事假','病假','出席','公假','喪假','遲到'];
+
+let rosterRaw = [];       // [{class, no, name}] — permanent roster, all classes
+let classes = [];         // unique class names
+let currentStatus = {};   // { [`${class}::${no}`]: status } for the selected date, all classes
+const CLASS_TEACHER_OPTIONS = [
+  '105高一忠.羅文宜',
+  '106高一孝.林鴻偉',
+  '134訊一甲.羅國銓',
+  '195商一甲.李智威',
+  '184餐一甲.邱啟修',
+  '185餐一乙.林廣易',
+  '189餐一實.林昀穎',
+  '197電一實.郭嘉和',
+];
+
+const DEFAULT_CONFIG = {
+  url: 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf1V9Wqv4BXLpA81kUJ4K8Mb8G8eni3qVbpFQ/formResponse',
+  expected: 'entry.1907979323',
+  present: 'entry.353368143',
+  publicLeave: 'entry.862633490',
+  personalLeave: 'entry.1157764411',
+  sickLeave: 'entry.308075395',
+  absent: 'entry.225265921',
+  late: 'entry.2120456923',
+  bereavement: 'entry.1539498780',
+  infectionEntry: 'entry.315006753',
+  infectionValue: '無',
+  classTeacherEntry: 'entry.1697362034',
+  classTeacherValue: '195商一甲.李智威',
+  extraFields: '',
+};
+let config = Object.assign({}, DEFAULT_CONFIG);
+
+const $ = (id) => document.getElementById(id);
+
+// Plain browser localStorage — works standalone once hosted on GitHub Pages
+// or opened as a local file, no external environment required. Data is
+// stored per-browser/per-device (same as any purely front-end web app).
+const STORAGE_PREFIX = 'rollcall:';
+function lsGet(key){
+  try{ return localStorage.getItem(STORAGE_PREFIX + key); }catch(e){ return null; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(STORAGE_PREFIX + key, value); }catch(e){}
+}
+
+async function loadRoster(){
+  const v = lsGet('roster-xlsx');
+  if(v) rosterRaw = JSON.parse(v);
+}
+async function saveRoster(){
+  lsSet('roster-xlsx', JSON.stringify(rosterRaw));
+}
+async function loadConfig(){
+  const v = lsGet('form-config');
+  if(v) config = Object.assign(config, JSON.parse(v));
+}
+async function saveConfig(){
+  lsSet('form-config', JSON.stringify(config));
+}
+function attendanceKey(){
+  return `attendance:${$('dateInput').value}`;
+}
+function statusKey(cls, no){
+  return `${cls}::${no}`;
+}
+async function loadAttendance(){
+  currentStatus = {};
+  const v = lsGet(attendanceKey());
+  if(v) currentStatus = JSON.parse(v);
+}
+async function saveAttendance(){
+  lsSet(attendanceKey(), JSON.stringify(currentStatus));
+}
+
+function normalizeHeader(h){
+  return String(h||'').trim();
+}
+
+function parseWorkbook(arrayBuffer){
+  const wb = XLSX.read(arrayBuffer, { type:'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+  if(rows.length < 2) return [];
+
+  const header = rows[0].map(normalizeHeader);
+  let classIdx = header.findIndex(h => h.includes('班級'));
+  let noIdx = header.findIndex(h => h.includes('座號'));
+  let nameIdx = header.findIndex(h => h.includes('姓名'));
+  // fallback to column order if headers unrecognized
+  if(classIdx === -1) classIdx = 0;
+  if(noIdx === -1) noIdx = 1;
+  if(nameIdx === -1) nameIdx = 2;
+
+  const out = [];
+  for(let i=1; i<rows.length; i++){
+    const row = rows[i];
+    const cls = normalizeHeader(row[classIdx]);
+    const no = normalizeHeader(row[noIdx]);
+    const name = normalizeHeader(row[nameIdx]);
+    if(!cls && !no && !name) continue;
+    out.push({ class: cls, no: no, name: name });
+  }
+  return out;
+}
+
+function computeClasses(){
+  classes = [...new Set(rosterRaw.map(s => s.class).filter(Boolean))];
+}
+
+function renderRosterSummary(){
+  const box = $('rosterSummary');
+  box.innerHTML = '';
+  if(rosterRaw.length === 0) return;
+  classes.forEach(c=>{
+    const count = rosterRaw.filter(s=>s.class===c).length;
+    const chip = document.createElement('span');
+    chip.className = 'class-chip';
+    chip.textContent = `${c}(${count}人)`;
+    box.appendChild(chip);
+  });
+}
+
+// Fixed shape/glyph per status so each column is recognizable without
+// needing to look back up at a (possibly scrolled-away) header.
+function statusIconHTML(status){
+  switch(status){
+    case '出席':
+      return '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" stroke="currentColor" stroke-width="2"/></svg>';
+    case '曠課':
+      return '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2"/></svg>';
+    case '事假':
+      return '<svg viewBox="0 0 24 24" fill="none"><polygon points="12,5 19,19 5,19" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+    case '遲到':
+      return '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2"/><line x1="7" y1="17" x2="17" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    case '病假':
+      return '<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    case '公假':
+      return '<span class="txt-icon">公</span>';
+    case '喪假':
+      return '<svg viewBox="0 0 24 24" fill="none">'
+        + '<path d="M3 9 Q12 13 21 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+        + '<path d="M12 12c0 0 -4.2 5.6 -4.2 8.3 0 2.3 1.9 3.7 4.2 3.7s4.2 -1.4 4.2 -3.7C16.2 17.6 12 12 12 12Z" fill="currentColor"/>'
+        + '</svg>';
+    default:
+      return '';
+  }
+}
+
+function renderLegend(){
+  const box = $('legend');
+  box.innerHTML = '';
+  STATUSES.forEach(st=>{
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="icon-box">${statusIconHTML(st)}</span><span>${st}</span>`;
+    box.appendChild(item);
+  });
+}
+
+function allStudentsSorted(){
+  return [...rosterRaw].sort((a,b)=>
+    a.class.localeCompare(b.class, 'zh-Hant') ||
+    ((parseInt(a.no)||0) - (parseInt(b.no)||0)) ||
+    a.no.localeCompare(b.no)
+  );
+}
+
+function computeClassSpans(students){
+  // Returns an array the same length as `students`. A positive number N at
+  // index i means "start a rowspan of N here"; 0 means "this row is covered
+  // by an earlier row's rowspan, don't render a class cell here".
+  const spans = new Array(students.length).fill(0);
+  let i = 0;
+  while(i < students.length){
+    let j = i;
+    while(j < students.length && students[j].class === students[i].class) j++;
+    spans[i] = j - i;
+    i = j;
+  }
+  return spans;
+}
+
+function renderAttendance(){
+  const students = allStudentsSorted();
+  const hasRoster = students.length > 0;
+  $('attendanceCard').style.display = hasRoster ? 'block' : 'none';
+  $('summaryCard').style.display = hasRoster ? 'block' : 'none';
+  $('rosterCount').textContent = hasRoster ? `共 ${students.length} 位學生,${classes.length} 個班級` : '';
+
+  renderLegend();
+
+  const spans = computeClassSpans(students);
+  const body = $('rosterBody');
+  body.innerHTML = '';
+  let stripe = false;
+  students.forEach((s, idx)=>{
+    const isGroupStart = spans[idx] > 0;
+    if(isGroupStart) stripe = !stripe;
+    const key = statusKey(s.class, s.no);
+    if(!currentStatus[key]) currentStatus[key] = '出席';
+
+    const tr = document.createElement('tr');
+    if(stripe) tr.classList.add('class-stripe');
+
+    if(isGroupStart){
+      const classTd = document.createElement('td');
+      classTd.className = 'class-cell';
+      classTd.textContent = s.class;
+      classTd.rowSpan = spans[idx];
+      tr.appendChild(classTd);
+    }
+    const noTd = document.createElement('td');
+    noTd.className = 'no-cell';
+    noTd.textContent = s.no;
+    const nameTd = document.createElement('td');
+    nameTd.className = 'name-cell';
+    nameTd.textContent = s.name;
+    tr.appendChild(noTd);
+    tr.appendChild(nameTd);
+
+    STATUSES.forEach(st=>{
+      const td = document.createElement('td');
+      td.className = 'status-col';
+      const dot = document.createElement('div');
+      dot.className = 'status-dot ' + st + (currentStatus[key] === st ? ' active' : '');
+      dot.title = st;
+      dot.innerHTML = statusIconHTML(st);
+      dot.addEventListener('click', async ()=>{
+        currentStatus[key] = st;
+        await saveAttendance();
+        renderAttendance();
+      });
+      td.appendChild(dot);
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+
+  renderSummary();
+}
+
+// Summary always reflects ALL classes in the roster (merged), since that's
+// what a single form submission will contain — not just the class currently
+// being viewed/marked.
+function renderSummary(){
+  const counts = {出席:0, 公假:0, 事假:0, 病假:0, 曠課:0, 遲到:0, 喪假:0};
+  rosterRaw.forEach(s=>{
+    const st = currentStatus[statusKey(s.class, s.no)] || '出席';
+    counts[st] = (counts[st]||0) + 1;
+  });
+  const expected = rosterRaw.length;
+  const present = counts['出席'] + counts['遲到'];
+
+  const grid = $('summaryGrid');
+  grid.innerHTML = '';
+  const items = [
+    {label:'應到人數', num:expected, cls:''},
+    {label:'實到人數', num:present, cls:''},
+    {label:'曠課', num:counts['曠課'], cls:'st-曠課'},
+    {label:'事假', num:counts['事假'], cls:'st-事假'},
+    {label:'病假', num:counts['病假'], cls:'st-病假'},
+    {label:'公假', num:counts['公假'], cls:'st-公假'},
+    {label:'喪假', num:counts['喪假'], cls:'st-喪假'},
+    {label:'遲到', num:counts['遲到'], cls:'st-遲到'},
+  ];
+  items.forEach(it=>{
+    const div = document.createElement('div');
+    div.className = 'summary-item ' + it.cls;
+    div.innerHTML = `<div class="num">${it.num}</div><div class="label">${it.label}</div>`;
+    grid.appendChild(div);
+  });
+}
+
+// Roster upload
+$('xlsxFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const parsed = parseWorkbook(ev.target.result);
+      if(parsed.length === 0){
+        alert('讀不到資料,請確認檔案格式(第一列為欄位名稱,包含班級、座號、姓名)');
+        return;
+      }
+      rosterRaw = parsed;
+      await saveRoster();
+      computeClasses();
+      renderRosterSummary();
+      await loadAttendance();
+      renderAttendance();
+    }catch(err){
+      alert('檔案解析失敗:' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+$('clearRosterBtn').addEventListener('click', async ()=>{
+  if(!confirm('確定要清空名單嗎?')) return;
+  rosterRaw = [];
+  await saveRoster();
+  computeClasses();
+  renderRosterSummary();
+  renderAttendance();
+});
+
+$('dateInput').addEventListener('change', async ()=>{
+  await loadAttendance();
+  renderAttendance();
+});
+
+// Settings modal
+function buildBulkPasteText(){
+  return [
+    `表單網址 ${$('cfgUrl').value}`,
+    `應到人數 ${$('cfgExpected').value}`,
+    `實到人數 ${$('cfgPresent').value}`,
+    `公假 ${$('cfgPublic').value}`,
+    `事假 ${$('cfgPersonal').value}`,
+    `病假 ${$('cfgSick').value}`,
+    `曠課 ${$('cfgAbsent').value}`,
+    `遲到 ${$('cfgLate').value}`,
+    `喪假 ${$('cfgBereavement').value}`,
+    `感染 ${$('cfgInfectionEntry').value}`,
+    `班級與導師 ${$('cfgClassTeacherEntry').value}`,
+  ].join('\n');
+}
+
+// Populate the class/homeroom-teacher dropdown once, plus a "custom" option
+// that reveals a free-text input for anything not in the preset list.
+function populateClassTeacherSelect(){
+  const sel = $('cfgClassTeacherSelect');
+  sel.innerHTML = '';
+  CLASS_TEACHER_OPTIONS.forEach(opt=>{
+    const o = document.createElement('option');
+    o.value = opt;
+    o.textContent = opt;
+    sel.appendChild(o);
+  });
+  const custom = document.createElement('option');
+  custom.value = '__custom__';
+  custom.textContent = '其他(自行輸入)';
+  sel.appendChild(custom);
+}
+function setClassTeacherValue(value){
+  const sel = $('cfgClassTeacherSelect');
+  const custom = $('cfgClassTeacherCustom');
+  if(CLASS_TEACHER_OPTIONS.includes(value)){
+    sel.value = value;
+    custom.style.display = 'none';
+    custom.value = '';
+  } else {
+    sel.value = '__custom__';
+    custom.style.display = 'block';
+    custom.value = value || '';
+  }
+}
+function getClassTeacherValue(){
+  const sel = $('cfgClassTeacherSelect');
+  if(sel.value === '__custom__') return $('cfgClassTeacherCustom').value.trim();
+  return sel.value;
+}
+$('cfgClassTeacherSelect').addEventListener('change', ()=>{
+  const custom = $('cfgClassTeacherCustom');
+  custom.style.display = $('cfgClassTeacherSelect').value === '__custom__' ? 'block' : 'none';
+});
+
+$('settingsBtn').addEventListener('click', ()=>{
+  $('cfgBulkPaste').value = buildBulkPasteText();
+  $('settingsOverlay').classList.add('open');
+});
+$('closeSettingsBtn').addEventListener('click', ()=>{ $('settingsOverlay').classList.remove('open'); });
+
+$('resetSettingsBtn').addEventListener('click', async ()=>{
+  if(!confirm('確定要還原成預設的表單網址與 entry 代碼嗎?')) return;
+  config = Object.assign({}, DEFAULT_CONFIG);
+  await saveConfig();
+  $('cfgUrl').value = config.url;
+  $('cfgExpected').value = config.expected;
+  $('cfgPresent').value = config.present;
+  $('cfgPublic').value = config.publicLeave;
+  $('cfgPersonal').value = config.personalLeave;
+  $('cfgSick').value = config.sickLeave;
+  $('cfgAbsent').value = config.absent;
+  $('cfgLate').value = config.late;
+  $('cfgBereavement').value = config.bereavement;
+  $('cfgInfectionEntry').value = config.infectionEntry;
+  $('cfgInfectionValue').value = config.infectionValue;
+  $('cfgClassTeacherEntry').value = config.classTeacherEntry;
+  setClassTeacherValue(config.classTeacherValue);
+  $('cfgExtra').value = config.extraFields;
+  $('cfgBulkPaste').value = buildBulkPasteText();
+  alert('已還原成預設值並儲存。');
+});
+
+// Bulk-paste recognition: match known field labels against whatever entry
+// code sits near them on the same line, so a whole new field list can be
+// pasted in one go after the form gets redesigned, instead of retyping
+// every entry code by hand.
+const BULK_LABELS = [
+  ['應到人數', 'cfgExpected'],
+  ['實到人數', 'cfgPresent'],
+  ['公假', 'cfgPublic'],
+  ['事假', 'cfgPersonal'],
+  ['病假', 'cfgSick'],
+  ['曠課', 'cfgAbsent'],
+  ['遲到', 'cfgLate'],
+  ['喪假', 'cfgBereavement'],
+  ['感染', 'cfgInfectionEntry'],
+  ['班級與導師', 'cfgClassTeacherEntry'],
+];
+$('parseBulkBtn').addEventListener('click', ()=>{
+  const text = $('cfgBulkPaste').value;
+  if(!text.trim()) return;
+
+  // Form URL, if present anywhere in the pasted text.
+  const urlMatch = text.match(/https:\/\/docs\.google\.com\/forms\/d\/e\/[^\s"'&]+/);
+  if(urlMatch){
+    let url = urlMatch[0].split('?')[0];
+    url = url.replace(/\/viewform$/, '/formResponse');
+    $('cfgUrl').value = url;
+  }
+
+  let matched = 0;
+  const lines = text.split('\n');
+  lines.forEach(line=>{
+    const entryMatch = line.match(/entry\.\d+/);
+    if(!entryMatch) return;
+    const entryCode = entryMatch[0];
+    for(const [label, inputId] of BULK_LABELS){
+      if(line.includes(label)){
+        $(inputId).value = entryCode;
+        matched++;
+        break;
+      }
+    }
+  });
+
+  alert(matched > 0
+    ? `已辨識並套用 ${matched} 個欄位,請往下檢查是否正確,再按「儲存設定」。`
+    : '沒有辨識到任何欄位,請確認貼上的內容裡,標籤文字(如「應到人數」)和 entry.代碼在同一行。');
+});
+
+$('saveSettingsBtn').addEventListener('click', async ()=>{
+  config = {
+    url: $('cfgUrl').value.trim(),
+    expected: $('cfgExpected').value.trim(),
+    present: $('cfgPresent').value.trim(),
+    publicLeave: $('cfgPublic').value.trim(),
+    personalLeave: $('cfgPersonal').value.trim(),
+    sickLeave: $('cfgSick').value.trim(),
+    absent: $('cfgAbsent').value.trim(),
+    late: $('cfgLate').value.trim(),
+    bereavement: $('cfgBereavement').value.trim(),
+    infectionEntry: $('cfgInfectionEntry').value.trim(),
+    infectionValue: $('cfgInfectionValue').value,
+    classTeacherEntry: $('cfgClassTeacherEntry').value.trim(),
+    classTeacherValue: getClassTeacherValue(),
+    extraFields: $('cfgExtra').value,
+  };
+  await saveConfig();
+  $('settingsOverlay').classList.remove('open');
+});
+
+// Group students by status, then by class, into { status: { className: [no,...] } }
+function buildStatusGroups(){
+  const groups = {};
+  STATUSES.forEach(st=>{ groups[st] = {}; });
+  rosterRaw.forEach(s=>{
+    const st = currentStatus[statusKey(s.class, s.no)] || '出席';
+    if(!groups[st][s.class]) groups[st][s.class] = [];
+    groups[st][s.class].push(s.no);
+  });
+  return groups;
+}
+
+// Format one status's seat numbers as text. When the roster only has one
+// class overall, just list seat numbers. With multiple classes, prefix each
+// group with its class name so it reads like "商一甲:3、7;商一乙:2".
+function formatSeatList(classMap){
+  const names = Object.keys(classMap);
+  if(names.length === 0) return '';
+  if(classes.length <= 1){
+    return classMap[names[0]].join('、');
+  }
+  return names.map(c => `${c}:${classMap[c].join('、')}`).join(';');
+}
+
+function buildSubmissionValues(){
+  const groups = buildStatusGroups();
+  const expected = rosterRaw.length;
+  let presentCount = 0;
+  Object.values(groups['出席']).forEach(arr=> presentCount += arr.length);
+  Object.values(groups['遲到']).forEach(arr=> presentCount += arr.length);
+
+  const values = {
+    [config.expected]: expected,
+    [config.present]: presentCount,
+    [config.publicLeave]: formatSeatList(groups['公假']),
+    [config.personalLeave]: formatSeatList(groups['事假']),
+    [config.sickLeave]: formatSeatList(groups['病假']),
+    [config.absent]: formatSeatList(groups['曠課']),
+    [config.late]: formatSeatList(groups['遲到']),
+    [config.bereavement]: formatSeatList(groups['喪假']),
+  };
+
+  if(config.infectionEntry) values[config.infectionEntry] = config.infectionValue;
+  if(config.classTeacherEntry) values[config.classTeacherEntry] = config.classTeacherValue;
+
+  if(config.extraFields){
+    config.extraFields.split('\n').forEach(line=>{
+      const idx = line.indexOf('=');
+      if(idx === -1) return;
+      const key = line.slice(0, idx).trim();
+      const val = line.slice(idx+1).trim();
+      if(key) values[key] = val;
+    });
+  }
+
+  return values;
+}
+
+// Preview: open the form's normal viewform page with values prefilled via query
+// string, so you can visually confirm the entry codes match the right questions
+// before trusting the blind auto-submit.
+$('previewBtn').addEventListener('click', ()=>{
+  const statusEl = $('submitStatus');
+  if(!config.url){
+    statusEl.textContent = '請先點右上角 ⚙ 設定表單網址與欄位代碼';
+    statusEl.className = 'submit-status err';
+    return;
+  }
+  const values = buildSubmissionValues();
+  const viewUrl = config.url.replace('/formResponse', '/viewform');
+  const params = new URLSearchParams();
+  params.set('usp', 'pp_url');
+  Object.entries(values).forEach(([entry, val])=>{
+    if(!entry) return;
+    params.set(entry, val);
+  });
+  window.open(viewUrl + '?' + params.toString(), '_blank');
+  statusEl.textContent = '已開啟表單分頁,答案已預填,請確認後按「繼續」→「提交」';
+  statusEl.className = 'submit-status';
+});
+
+// Submit to Google Form via hidden iframe form post (avoids CORS issues).
+// Note: because this is cross-origin, the page cannot read Google's response —
+// "已送出" only means the browser sent the request, not that Google accepted it.
+// Use the 預覽確認欄位 button first to confirm the entry codes are correct.
+$('submitBtn').addEventListener('click', ()=>{
+  const statusEl = $('submitStatus');
+  if(!config.url){
+    statusEl.textContent = '請先點右上角 ⚙ 設定表單網址與欄位代碼';
+    statusEl.className = 'submit-status err';
+    return;
+  }
+  const values = buildSubmissionValues();
+
+  const form = document.createElement('form');
+  form.action = config.url;
+  form.method = 'POST';
+  form.target = 'hiddenSubmitFrame';
+
+  let fieldCount = 0;
+  Object.entries(values).forEach(([entry, val])=>{
+    if(!entry) return;
+    fieldCount++;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = entry;
+    input.value = val;
+    form.appendChild(input);
+  });
+
+  if(fieldCount === 0){
+    statusEl.textContent = '尚未設定任何欄位代碼,請點 ⚙ 設定';
+    statusEl.className = 'submit-status err';
+    return;
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+
+  statusEl.textContent = '已送出請求(無法確認表單是否真的收到,請到表單「回覆」分頁確認,或先用左側「預覽確認欄位」檢查)';
+  statusEl.className = 'submit-status ok';
+});
+
+async function init(){
+  $('dateInput').value = new Date().toISOString().slice(0,10);
+  await loadRoster();
+  await loadConfig();
+
+  $('cfgUrl').value = config.url || '';
+  $('cfgExpected').value = config.expected || '';
+  $('cfgPresent').value = config.present || '';
+  $('cfgPublic').value = config.publicLeave || '';
+  $('cfgPersonal').value = config.personalLeave || '';
+  $('cfgSick').value = config.sickLeave || '';
+  $('cfgAbsent').value = config.absent || '';
+  $('cfgLate').value = config.late || '';
+  $('cfgBereavement').value = config.bereavement || '';
+  $('cfgInfectionEntry').value = config.infectionEntry || '';
+  $('cfgInfectionValue').value = config.infectionValue || '';
+  $('cfgClassTeacherEntry').value = config.classTeacherEntry || '';
+  populateClassTeacherSelect();
+  setClassTeacherValue(config.classTeacherValue || '');
+  $('cfgExtra').value = config.extraFields || '';
+
+  computeClasses();
+  renderRosterSummary();
+  await loadAttendance();
+  renderAttendance();
+}
+
+init();
+</script>
+
+</body>
+</html>
