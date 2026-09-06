@@ -116,7 +116,19 @@
   .card h2{font-size:18px;margin:0 0 6px;font-weight:800;color:var(--brown);}
   .hint{color:var(--ink-soft);font-size:13.5px;margin:0 0 16px;}
   .upload-row{display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;align-items:center;}
-  input[type=file]{font-size:13.5px;}
+  input[type=file]{font-size:14.5px;}
+  input[type=file]::file-selector-button{
+    font-family:inherit;cursor:pointer;border:2.5px solid var(--brown);border-radius:10px;
+    padding:12px 20px;font-size:15px;font-weight:800;background:#fff;color:var(--brown);
+    box-shadow:var(--shadow-sm);margin-right:12px;transition:transform 0.08s ease;
+  }
+  input[type=file]::file-selector-button:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
+  input[type=file]::-webkit-file-upload-button{
+    font-family:inherit;cursor:pointer;border:2.5px solid var(--brown);border-radius:10px;
+    padding:12px 20px;font-size:15px;font-weight:800;background:#fff;color:var(--brown);
+    box-shadow:var(--shadow-sm);margin-right:12px;transition:transform 0.08s ease;
+  }
+  input[type=file]::-webkit-file-upload-button:hover{background:var(--tan-pale);}
   button{font-family:inherit;cursor:pointer;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:800;transition:transform 0.08s ease;}
   .btn-primary{background:var(--warm-orange);color:#fff;border:2.5px solid var(--brown);box-shadow:var(--shadow-sm);}
   .btn-primary:hover{transform:translate(-1px,-1px);}
@@ -247,6 +259,25 @@
   .modal details.note[open] summary::before{content:'▾ ';}
   .modal details.note .note-body{margin-top:10px;}
   .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
+
+  /* 手機橫向時,螢幕寬度變多、高度變少:把握多出來的寬度放大姓名欄的字,
+     方便老花眼的老師閱讀;座號/班級欄維持原本寬度不搶空間,曠課~遲到
+     七個狀態欄則縮窄間距,讓圖示彼此靠緊,不會因為姓名變寬而散得更開。
+     用 max-height 而非單純 orientation,是為了只鎖定手機橫放(螢幕矮),
+     避免一般桌機瀏覽器視窗也被誤判成「橫向」。 */
+  @media (orientation:landscape) and (max-height:520px){
+    .name-cell{
+      font-size:19px;font-weight:700;
+      width:84px;max-width:84px;
+      padding-left:4px;padding-right:2px;
+    }
+    thead th.name-cell{width:84px;font-size:12.5px;}
+    .no-cell{width:24px;}
+    thead th.no-cell{width:24px;}
+    .status-col{padding:4px 0;}
+    .status-dot{width:25px;height:25px;}
+    .name-tooltip{font-size:17px;padding:9px 14px;}
+  }
 </style>
 </head>
 <body>
@@ -269,7 +300,10 @@
 
   <div class="card" id="attendanceCard" style="display:none;">
     <div class="toolbar">
-      <h2 style="margin:0;">今日點名</h2>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h2 style="margin:0;">今日點名</h2>
+        <button class="btn-secondary" id="allPresentBtn" style="padding:6px 14px;font-size:12.5px;">全體出席</button>
+      </div>
       <span class="count" id="rosterCount"></span>
     </div>
     <div class="table-scroll" id="tableScroll">
@@ -788,6 +822,18 @@ $('clearRosterBtn').addEventListener('click', async ()=>{
 
 $('dateInput').addEventListener('change', async ()=>{
   await loadAttendance();
+  renderAttendance();
+});
+
+// 一鍵把今天所有學生(不分班級)都設為「出席」,取代逐一點按;
+// 會覆蓋掉目前已經點過的狀態,所以先用自訂確認視窗跟老師確認一次。
+$('allPresentBtn').addEventListener('click', async ()=>{
+  const ok = await showConfirm('確定要將今天所有學生都設為「出席」嗎?目前已點的名會被覆蓋。');
+  if(!ok) return;
+  rosterRaw.forEach(s=>{
+    currentStatus[statusKey(s.class, s.no)] = '出席';
+  });
+  await saveAttendance();
   renderAttendance();
 });
 
