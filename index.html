@@ -144,9 +144,16 @@
   /* 表格改用 table-layout:fixed,「班級/座號/姓名」給固定的窄寬度,
      其餘曠課~遲到七個狀態欄不設寬度,由瀏覽器自動平分剩下的空間,
      這樣一般手機螢幕寬度就能完整顯示所有欄位,不用再左右滑動。
-     .table-scroll 保留 overflow-x 只是極窄螢幕時的保險,平常不會觸發。 */
+     .table-scroll 保留 overflow-x 只是極窄螢幕時的保險,平常不會觸發。
+     這裡務必明寫 overflow-y:visible——CSS 規則規定「只設 overflow-x、
+     不設 overflow-y」時,瀏覽器會自動把 overflow-y 也當成 auto,等於
+     悄悄把這個 div 變成自己的直向捲動容器,害裡面 thead 的
+     position:sticky 参照到這個 div 而不是整個頁面,才會在資料重新
+     渲染(例如按下「全體出席」)後,偶爾出現表頭空一塊、前幾列被
+     蓋住的錯位畫面。明寫 overflow-y:visible 讓它照舊只吃頁面捲動。 */
   .table-scroll{
     overflow-x:auto;
+    overflow-y:visible;
     -webkit-overflow-scrolling:touch;
     border-radius:12px;
     border:1px solid var(--line-soft);
