@@ -159,10 +159,17 @@
     border:1px solid var(--line-soft);
   }
   table{table-layout:fixed;width:100%;border-collapse:separate;border-spacing:0;}
+  /* 表頭原本用 position:sticky 讓它在捲動很長的名單時停留在畫面上方,方便
+     對照欄位。但這個做法在 Safari 上,只要表格裡有 rowSpan(班級合併儲存格)
+     就會出現嚴重的排版錯誤:瀏覽器會把 sticky 的偏移量(狀態列高度)誤算成
+     額外的空白,硬生生塞在表頭正下方,把最前面一兩位學生完全蓋住——這正是
+     使用者回報「1號、2號同學被白色塊遮住」的真正原因(之前只拿掉了班級文字
+     的 sticky,問題還在,因為表頭本身也是 sticky)。改成一般的表頭,不再
+     sticky,雖然捲動很長名單時看不到欄位名稱,但正確顯示每一位學生優先。 */
   thead th{
     text-align:left;font-size:11.5px;color:var(--brown);font-weight:800;padding:8px 2px;
     border-bottom:3px solid var(--brown);
-    position:sticky;top:var(--safe-top);background:var(--tan-pale);z-index:3;
+    background:var(--tan-pale);
     overflow:hidden;
   }
   thead th.status-col{text-align:center;}
@@ -277,35 +284,35 @@
   .modal details.note .note-body{margin-top:10px;}
   .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
 
-  /* 手機橫向時,螢幕寬度變多、高度變少:把文字和圖示都大幅放大,方便老花眼
-     的老師閱讀與點按。改用 table-layout:auto,讓每一欄依照放大後的內容自動
-     撐開寬度,不再用 fixed 版面把七個狀態欄硬塞進固定比例——那樣寬度不夠時
-     圖示會被裁切或彼此重疊蓋住。欄位撐開後如果總寬度超過螢幕,交給
-     .table-scroll 原本就有的左右捲動處理,寧可讓老師多滑一下,也不要有任何
-     文字或圖示被遮住看不到。
+  /* 手機橫向時,螢幕寬度變多、高度變少:放大文字和圖示,方便老花眼的老師
+     閱讀與點按,但要抓準大小——太大會讓 10 欄(班級/座號/姓名+七個狀態欄)
+     總寬度超過手機橫放時的螢幕寬度,導致最右邊幾欄被推出畫面外看不到。
+     這裡的數字是抓一般手機橫放內容區大約 700~800px 寬,10 欄能剛好排下、
+     不必左右捲動的大小。改用 table-layout:auto,讓每一欄依內容自動撐開,
+     避免 fixed 版面把狀態欄硬塞在一起,造成圖示互相重疊蓋住。
      用 max-height 而非單純 orientation,是為了只鎖定手機橫放(螢幕矮),
      避免一般桌機瀏覽器視窗也被誤判成「橫向」。 */
   @media (orientation:landscape) and (max-height:520px){
     table{table-layout:auto;}
-    thead th{font-size:22px;padding:10px 6px;}
-    .class-cell{width:auto;min-width:44px;}
-    thead th.class-cell{width:auto;min-width:44px;}
-    .class-label{font-size:22px;letter-spacing:2px;padding:12px 4px;}
-    .no-cell{width:auto;min-width:46px;font-size:26px;font-weight:700;}
-    thead th.no-cell{width:auto;min-width:46px;}
+    thead th{font-size:15px;padding:6px 4px;}
+    .class-cell{width:auto;min-width:30px;}
+    thead th.class-cell{width:auto;min-width:30px;}
+    .class-label{font-size:16px;letter-spacing:1px;padding:8px 3px;}
+    .no-cell{width:auto;min-width:34px;font-size:18px;font-weight:700;}
+    thead th.no-cell{width:auto;min-width:34px;}
     .name-cell{
-      font-size:40px;font-weight:700;
-      width:auto;max-width:none;min-width:150px;
-      padding:10px 8px;
+      font-size:24px;font-weight:700;
+      width:auto;max-width:none;min-width:96px;
+      padding:6px 6px;
     }
-    thead th.name-cell{width:auto;min-width:150px;}
-    .status-col{padding:8px 10px;}
+    thead th.name-cell{width:auto;min-width:96px;}
+    .status-col{padding:4px 3px;}
     :root{
-      --dot-size:80px;
-      --dot-icon-size:40px;
-      --dot-txt-size:38px;
+      --dot-size:52px;
+      --dot-icon-size:26px;
+      --dot-txt-size:24px;
     }
-    .name-tooltip{font-size:34px;padding:16px 22px;}
+    .name-tooltip{font-size:22px;padding:12px 16px;}
   }
 </style>
 </head>
