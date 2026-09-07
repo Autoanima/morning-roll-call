@@ -63,12 +63,18 @@
   .serif{font-family:inherit;}
   /* 固定在最頂端、與狀態列同高的色塊,讓狀態列區域看起來像是App主題色的一部分,
      而不是留白或被表頭擠壓。 */
-  /* 藏在頁面最上方、正常情況下被捲動到看不見的地方,只有使用者在最頂端
-     繼續往下拉(iOS 的彈性回彈捲動)時才會露出來的小彩蛋。 */
+  /* 藏在整個畫面最上層、平常完全推到看不見的地方的小彩蛋圖片。用 position:fixed
+     釘在 viewport 頂端,預設用 transform 整個推到畫面外(而不是塞進文件流、
+     指望載入時把捲軸捲過去——那個做法在 iOS 待機畫面/PWA 下常常不可靠)。
+     真正讓它「露出來」的邏輯在 JS:監聽 scroll,iOS Safari 在使用者於最頂端
+     繼續往下拉(彈力回彈)時,window.scrollY 會變成負值,依那個負值即時把
+     圖片從畫面外拉出來,拉多少露多少,放開手就彈回去藏起來。 */
   #easterEgg{
-    height:170px;
-    overflow:hidden;
-    background:var(--coffee);
+    position:fixed;top:0;left:0;right:0;height:170px;
+    overflow:hidden;background:var(--coffee);
+    transform:translateY(-170px);
+    z-index:1;
+    pointer-events:none;
   }
   #easterEgg img{
     width:100%;height:100%;object-fit:cover;object-position:top center;display:block;
@@ -78,6 +84,8 @@
     background:var(--coffee);z-index:100;pointer-events:none;
   }
   header{
+    position:relative;
+    z-index:5;
     background:var(--coffee);
     color:var(--sun-yellow);
     padding:20px 28px;
@@ -117,7 +125,7 @@
     transition:transform 0.08s ease;
   }
   .gear-btn:hover{transform:translate(-1px,-1px);}
-  main{max-width:980px;margin:0 auto;padding:24px 12px 80px;min-height:100vh;box-sizing:border-box;}
+  main{max-width:980px;margin:0 auto;padding:24px 12px 80px;box-sizing:border-box;}
   .card{
     background:var(--card);border:3px solid var(--brown);border-radius:var(--radius);
     padding:24px;margin-bottom:22px;box-shadow:var(--shadow);
@@ -1021,6 +1029,19 @@ function getClassTeacherValue(){
   return $('cfgClassTeacherSelect').value;
 }
 
+// When the teacher picks a different homeroom, jump the "目前編輯" branch
+// selector to match automatically (derived from the leading digit of the
+// class code), so the advanced entry-code fields shown always correspond
+// to whichever homeroom is currently selected.
+$('cfgClassTeacherSelect').addEventListener('change', ()=>{
+  const digit = branchDigitFor(getClassTeacherValue());
+  if(!digit || digit === currentBranchDigit) return;
+  saveFieldsIntoBranch(currentBranchDigit);
+  currentBranchDigit = digit;
+  $('cfgBranchSelect').value = digit;
+  loadBranchIntoFields(currentBranchDigit);
+});
+
 function refreshClassTeacherListTextarea(){
   $('cfgClassTeacherList').value = config.classTeacherOptions.join('\n');
 }
@@ -1326,26 +1347,28 @@ async function init(){
 
 init();
 
-// Hide the Easter-egg strip by scrolling past it as soon as the page loads,
-// so it stays invisible during normal use — it only reappears if the user
-// pulls down past the very top (iOS's elastic overscroll/rubber-band).
-// `main{min-height:100vh}` above guarantees there's always enough page
-// height to scroll past the egg, even on the empty "no roster yet" screen.
-function hideEasterEgg(){
+// The Easter-egg image is position:fixed and sits translated fully above the
+// viewport by default (see #easterEgg CSS), so it's never part of normal
+// document flow and never needs "scrolling past" to hide it. iOS Safari
+// reports negative window.scrollY while the user holds an elastic
+// overscroll bounce at the very top of the page; we mirror that negative
+// amount into the image's translateY so it slides down exactly as far as
+// the user pulls, and slides back out of view the moment they let go.
+(function setupEasterEgg(){
   const egg = document.getElementById('easterEgg');
   if(!egg) return;
-  window.scrollTo(0, egg.offsetHeight);
-  // Some standalone-PWA / Safari combinations settle their layout a beat
-  // late, so re-assert a few times rather than trusting a single call.
-  if(window.scrollY < egg.offsetHeight){
-    requestAnimationFrame(()=> window.scrollTo(0, egg.offsetHeight));
+  const HEIGHT = 170;
+  function onScroll(){
+    const y = window.scrollY || window.pageYOffset || 0;
+    if(y < 0){
+      const pull = Math.min(-y, HEIGHT);
+      egg.style.transform = `translateY(${pull - HEIGHT}px)`;
+    } else {
+      egg.style.transform = `translateY(-${HEIGHT}px)`;
+    }
   }
-}
-window.addEventListener('load', hideEasterEgg);
-document.addEventListener('DOMContentLoaded', hideEasterEgg);
-window.addEventListener('pageshow', hideEasterEgg);
-window.addEventListener('orientationchange', ()=> setTimeout(hideEasterEgg, 100));
-[50, 150, 300, 600, 1000].forEach(ms => setTimeout(hideEasterEgg, ms));
+  window.addEventListener('scroll', onScroll, { passive: true });
+})();
 
 </script>
 
