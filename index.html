@@ -70,7 +70,13 @@
      繼續往下拉(彈力回彈)時,window.scrollY 會變成負值,依那個負值即時把
      圖片從畫面外拉出來,拉多少露多少,放開手就彈回去藏起來。 */
   #easterEgg{
-    position:fixed;top:0;left:0;right:0;height:0;
+    position:fixed;top:0;left:0;right:0;
+    /* 高度 = JS 拉動量(--egg-pull)+ 系統狀態列高度。之前只寫拉動量,
+       但 header 在文件流裡本來就從「狀態列高度」那個位置開始,回彈時
+       header 會多移動狀態列高度那一段距離,圖片卻沒跟著多長那一截,
+       兩者之間才會一直露出一條固定寬度的接縫(不管拉多用力縫都一樣寬)。
+       用 calc() 把狀態列高度也算進去,兩邊終於能對齊,不再看到縫。 */
+    height:calc(var(--egg-pull, 0px) + var(--safe-top));
     overflow:hidden;background:var(--coffee);
     z-index:1;
     pointer-events:none;
@@ -179,7 +185,14 @@
   thead th{
     text-align:left;font-size:11.5px;color:var(--brown);font-weight:800;padding:8px 2px;
     border-bottom:3px solid var(--brown);
-    position:sticky;top:var(--safe-top);background:var(--tan-pale);z-index:3;
+    /* top 故意寫死 0,不要用 var(--safe-top)。之前用非零的 safe-top 當
+       sticky 偏移量,在「加入主畫面」的獨立模式下(safe-top 是實際的數字,
+       不像一般 Safari 分頁是 0)會觸發 WebKit 表格版面的 render bug,
+       把 tbody 最前面一兩列的內容吃掉——不管班級欄有沒有用 rowSpan 合併
+       都一樣會發生,換掉這個非零偏移量本身才是真正解法。改成貼齊 0 之後,
+       上面幾個像素會被 z-index 更高的 .status-bar-fill 蓋住,視覺上仍等於
+       貼在狀態列下方,只是不再讓 sticky 本身背負那個非零數字。 */
+    position:sticky;top:0;background:var(--tan-pale);z-index:3;
     overflow:hidden;
   }
   thead th.status-col{text-align:center;}
@@ -197,18 +210,15 @@
     padding:0;
   }
   thead th.class-cell{width:24px;}
-  /* 班級文字原本用 rowSpan 合併儲存格 + sticky 定位,但這個組合在「加入
-     主畫面」的獨立模式下(此時系統狀態列高度是非零的偏移量)會跟 thead 的
-     position:sticky 起衝突,導致最上面一兩列的內容被蓋住;一般 Safari
-     分頁偏移量是 0 才没觸發。現在改成每一列都各自顯示班級名稱、不再合併,
-     所以這裡只需要在單一列的高度內放得下直式文字即可,不用再撐一整個
-     合併儲存格的高度。 */
+  /* 班級文字用 rowSpan 合併儲存格,同班學生共用一格,置中顯示班級名稱。
+     真正造成座號1、2被蓋住的原因是 thead sticky 的非零偏移量(已修正),
+     不是這個合併儲存格,所以這裡照常給合併後的高整格置中足夠的內距。 */
   .class-label{
     display:block;
     writing-mode:vertical-rl;
     text-orientation:upright;
-    letter-spacing:1px;
-    padding:2px;
+    letter-spacing:1.5px;
+    padding:10px 2px;
     white-space:nowrap;
   }
   .name-cell{
@@ -775,19 +785,20 @@ function renderAttendance(){
     const tr = document.createElement('tr');
     if(stripe) tr.classList.add('class-stripe');
 
-    // 班級欄改成每一列都各自顯示(不再用 rowSpan 合併儲存格)。原本合併
-    // 儲存格的做法在「加入主畫面」的獨立模式下,會跟上方 thead 的
-    // position:sticky(此時有系統狀態列高度的非零偏移量)產生衝突,
-    // 導致最上面一兩列的內容被蓋住;一般 Safari 分頁因為偏移量是 0 才不會
-    // 觸發。改成每列都重複顯示班級名稱雖然少了合併的美觀,但徹底避開這個
-    // WebKit 表格排版的 bug,兩種模式下都能正常顯示。
-    const classTd = document.createElement('td');
-    classTd.className = 'class-cell';
-    const classLabel = document.createElement('span');
-    classLabel.className = 'class-label';
-    classLabel.textContent = s.class;
-    classTd.appendChild(classLabel);
-    tr.appendChild(classTd);
+    // 班級欄合併回 rowSpan(跟一開始一樣)。上一版拿掉合併是猜測合併儲存格
+    // 跟 sticky 表頭衝突,但拿掉後座號1、2還是被蓋住,證明合併儲存格其實
+    // 不是禍首——真正原因是 thead 的 sticky 用了非零偏移量(已在上面改成
+    // top:0 修正),所以這裡合併儲存格可以放心恢復。
+    if(isGroupStart){
+      const classTd = document.createElement('td');
+      classTd.className = 'class-cell';
+      classTd.rowSpan = spans[idx];
+      const classLabel = document.createElement('span');
+      classLabel.className = 'class-label';
+      classLabel.textContent = s.class;
+      classTd.appendChild(classLabel);
+      tr.appendChild(classTd);
+    }
 
     const noTd = document.createElement('td');
     noTd.className = 'no-cell';
@@ -1362,7 +1373,11 @@ init();
     const y = window.scrollY || window.pageYOffset || 0;
     const pull = y < 0 ? Math.min(-y, MAX_HEIGHT) : 0;
     if(pull !== lastPull){
-      egg.style.height = pull + 'px';
+      // Sets --egg-pull only; the CSS height:calc(var(--egg-pull) + var(--safe-top))
+      // rule adds the status-bar height on top of this so the image's bottom
+      // edge always lines up exactly with wherever the header has been
+      // dragged to, with no seam regardless of device notch/Dynamic Island size.
+      egg.style.setProperty('--egg-pull', pull + 'px');
       lastPull = pull;
     }
     requestAnimationFrame(tick);
