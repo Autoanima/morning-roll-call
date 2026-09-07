@@ -48,13 +48,6 @@
     --safe-left:env(safe-area-inset-left, 0px);
     --safe-right:env(safe-area-inset-right, 0px);
   }
-  /* iOS 彈力回彈往下拉超過我們自己控制的彩蛋圖片範圍時,瀏覽器會露出
-     <html> 本身的背景色打底——這裡故意設成跟標題列一樣的咖啡色,這樣
-     不管彈力回彈的當下哪一層元素還沒跟上、露出多少縫隙,看到的都是
-     同一種咖啡色,不會出現顏色不一致的破綻。 */
-  html{
-    background:var(--coffee);
-  }
   body{
     margin:0;
     background:var(--cream);
@@ -204,17 +197,18 @@
     padding:0;
   }
   thead th.class-cell{width:24px;}
-  /* 班級文字原本用 position:sticky 貼在表頭下方,但這個「sticky 元素包在
-     rowspan 儲存格裡」的組合在手機 WebKit 上會有渲染 bug——即使沒有捲動,
-     也可能把同一格裡最上面一兩列的內容蓋住/擠不見。改回單純貼齊儲存格頂端,
-     不做 sticky:班級名稱只在該班第一列顯示一次,捲動時會跟著頁面一起移動、
-     不會停留,但換取穩定不出錯。 */
+  /* 班級文字原本用 rowSpan 合併儲存格 + sticky 定位,但這個組合在「加入
+     主畫面」的獨立模式下(此時系統狀態列高度是非零的偏移量)會跟 thead 的
+     position:sticky 起衝突,導致最上面一兩列的內容被蓋住;一般 Safari
+     分頁偏移量是 0 才没觸發。現在改成每一列都各自顯示班級名稱、不再合併,
+     所以這裡只需要在單一列的高度內放得下直式文字即可,不用再撐一整個
+     合併儲存格的高度。 */
   .class-label{
     display:block;
     writing-mode:vertical-rl;
     text-orientation:upright;
-    letter-spacing:1.5px;
-    padding:10px 2px;
+    letter-spacing:1px;
+    padding:2px;
     white-space:nowrap;
   }
   .name-cell{
@@ -781,16 +775,20 @@ function renderAttendance(){
     const tr = document.createElement('tr');
     if(stripe) tr.classList.add('class-stripe');
 
-    if(isGroupStart){
-      const classTd = document.createElement('td');
-      classTd.className = 'class-cell';
-      classTd.rowSpan = spans[idx];
-      const classLabel = document.createElement('span');
-      classLabel.className = 'class-label';
-      classLabel.textContent = s.class;
-      classTd.appendChild(classLabel);
-      tr.appendChild(classTd);
-    }
+    // 班級欄改成每一列都各自顯示(不再用 rowSpan 合併儲存格)。原本合併
+    // 儲存格的做法在「加入主畫面」的獨立模式下,會跟上方 thead 的
+    // position:sticky(此時有系統狀態列高度的非零偏移量)產生衝突,
+    // 導致最上面一兩列的內容被蓋住;一般 Safari 分頁因為偏移量是 0 才不會
+    // 觸發。改成每列都重複顯示班級名稱雖然少了合併的美觀,但徹底避開這個
+    // WebKit 表格排版的 bug,兩種模式下都能正常顯示。
+    const classTd = document.createElement('td');
+    classTd.className = 'class-cell';
+    const classLabel = document.createElement('span');
+    classLabel.className = 'class-label';
+    classLabel.textContent = s.class;
+    classTd.appendChild(classLabel);
+    tr.appendChild(classTd);
+
     const noTd = document.createElement('td');
     noTd.className = 'no-cell';
     noTd.textContent = s.no;
@@ -1349,16 +1347,27 @@ init();
 // than capping it and sliding a fixed-size image into view), so the coffee
 // backdrop always fills the whole gap the bounce opens up above the header,
 // with no leftover blank strip no matter how hard the user pulls.
+//
+// A plain 'scroll' event listener leaves a visible sliver of gap right at
+// the egg/header seam during fast motion, because iOS can batch/throttle
+// scroll events so our height update lags a frame or two behind the actual
+// native rubber-band position. Polling scrollY every animation frame
+// instead keeps the two in much tighter sync.
 (function setupEasterEgg(){
   const egg = document.getElementById('easterEgg');
   if(!egg) return;
   const MAX_HEIGHT = 500; // generous cap just to avoid absurd image stretching on a very long pull
-  function onScroll(){
+  let lastPull = -1;
+  function tick(){
     const y = window.scrollY || window.pageYOffset || 0;
     const pull = y < 0 ? Math.min(-y, MAX_HEIGHT) : 0;
-    egg.style.height = pull + 'px';
+    if(pull !== lastPull){
+      egg.style.height = pull + 'px';
+      lastPull = pull;
+    }
+    requestAnimationFrame(tick);
   }
-  window.addEventListener('scroll', onScroll, { passive: true });
+  requestAnimationFrame(tick);
 })();
 
 </script>
