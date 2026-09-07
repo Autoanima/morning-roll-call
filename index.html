@@ -117,7 +117,7 @@
     transition:transform 0.08s ease;
   }
   .gear-btn:hover{transform:translate(-1px,-1px);}
-  main{max-width:980px;margin:0 auto;padding:24px 12px 80px;}
+  main{max-width:980px;margin:0 auto;padding:24px 12px 80px;min-height:100vh;box-sizing:border-box;}
   .card{
     background:var(--card);border:3px solid var(--brown);border-radius:var(--radius);
     padding:24px;margin-bottom:22px;box-shadow:var(--shadow);
@@ -277,23 +277,27 @@
   .modal details.note .note-body{margin-top:10px;}
   .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
 
-  /* 手機橫向時,螢幕寬度變多、高度變少:把握多出來的寬度放大姓名欄的字,
-     方便老花眼的老師閱讀;座號/班級欄維持原本寬度不搶空間,曠課~遲到
-     七個狀態欄則縮窄間距,讓圖示彼此靠緊,不會因為姓名變寬而散得更開。
-     用 max-height 而非單純 orientation,是為了只鎖定手機橫放(螢幕矮),
-     避免一般桌機瀏覽器視窗也被誤判成「橫向」。 */
+  /* 手機橫向時,螢幕寬度變多、高度變少:趁多出來的寬度把姓名、座號、狀態圖示都
+     放大,方便老花眼的老師閱讀,而不是縮小塞進去。用 max-height 而非單純
+     orientation,是為了只鎖定手機橫放(螢幕矮),避免一般桌機瀏覽器視窗也被
+     誤判成「橫向」。 */
   @media (orientation:landscape) and (max-height:520px){
     .name-cell{
-      font-size:19px;font-weight:700;
-      width:84px;max-width:84px;
-      padding-left:4px;padding-right:2px;
+      font-size:22px;font-weight:700;
+      width:120px;max-width:120px;
+      padding-left:6px;padding-right:4px;
     }
-    thead th.name-cell{width:84px;font-size:12.5px;}
-    .no-cell{width:24px;}
-    thead th.no-cell{width:24px;}
-    .status-col{padding:4px 0;}
-    .status-dot{width:25px;height:25px;}
-    .name-tooltip{font-size:17px;padding:9px 14px;}
+    thead th.name-cell{width:120px;font-size:15px;}
+    .no-cell{width:32px;font-size:16px;}
+    thead th.no-cell{width:32px;font-size:14px;}
+    .class-cell{width:32px;font-size:15px;}
+    thead th.class-cell{width:32px;}
+    .status-col{padding:6px 1px;}
+    thead th.status-col{font-size:14px;}
+    .status-dot{width:38px;height:38px;}
+    .status-dot svg{width:19px;height:19px;}
+    .status-dot .txt-icon{font-size:18px;}
+    .name-tooltip{font-size:19px;padding:10px 16px;}
   }
 </style>
 </head>
@@ -373,33 +377,6 @@
 
     <h2 class="serif">表單欄位設定</h2>
     <div class="field-row"><label>表單網址</label><input type="text" id="cfgUrl" placeholder=".../formResponse"></div>
-    <div class="field-row"><label>年段題代碼</label><input type="text" id="cfgGradeEntry" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>感染內容</label><input type="text" id="cfgInfectionValue" placeholder="無"></div>
-
-    <h3 style="margin:18px 0 4px;color:var(--brown);font-size:15px;">各年段的欄位代碼</h3>
-    <p class="hint" style="margin:0 0 12px;">表單第一頁先選年段,才會跳到對應年段那一頁——每個年段自己那一頁,連應到人數、各假別、感染這些欄位的
-    entry 代碼都不一樣,不是只有班級與導師。下面選一個年段,編輯完換下一個年段前資料會自動記住,全部設定好再按最下面的「儲存設定」。</p>
-    <div class="field-row">
-      <label>目前編輯</label>
-      <select id="cfgBranchSelect" style="border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;">
-        <option value="7">國中部7年級</option>
-        <option value="8">國中部8年級</option>
-        <option value="9">國中部9年級</option>
-        <option value="1">高中職1年級</option>
-        <option value="2">高中職2年級</option>
-        <option value="3">高中職3年級</option>
-      </select>
-    </div>
-    <div class="field-row"><label>班級與導師代碼</label><input type="text" id="cfgBranchClassTeacher" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>應到人數</label><input type="text" id="cfgBranchExpected" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>實到人數</label><input type="text" id="cfgBranchPresent" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>公假</label><input type="text" id="cfgBranchPublic" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>事假</label><input type="text" id="cfgBranchPersonal" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>病假</label><input type="text" id="cfgBranchSick" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>曠課</label><input type="text" id="cfgBranchAbsent" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>遲到</label><input type="text" id="cfgBranchLate" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>喪假</label><input type="text" id="cfgBranchBereavement" placeholder="entry.xxxxxxx"></div>
-    <div class="field-row"><label>感染代碼</label><input type="text" id="cfgBranchInfection" placeholder="entry.xxxxxxx"></div>
 
     <div class="field-row" style="align-items:flex-start;">
       <label>班級與導師</label>
@@ -422,10 +399,46 @@
       </div>
     </details>
 
-    <div class="field-row" style="align-items:flex-start;">
-      <label>其他固定欄位</label>
-      <textarea id="cfgExtra" rows="4" style="border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;" placeholder="每行一組,例如:&#10;entry.111111111=on&#10;entry.222222222=高中職1年級"></textarea>
-    </div>
+    <details class="note">
+      <summary>進階:entry 代碼設定(一般不需要更改,點此展開)</summary>
+      <div class="note-body">
+        <p style="margin:0 0 12px;">下面這些是表單背後的技術代碼,已經幫你設定好,平常不需要看到或更改。只有表單改版、
+        代碼失效時才需要進來調整,建議直接用「快速貼上」整段更新,不用一格一格改。</p>
+
+        <div class="field-row"><label>年段題代碼</label><input type="text" id="cfgGradeEntry" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>感染內容</label><input type="text" id="cfgInfectionValue" placeholder="無"></div>
+
+        <h3 style="margin:18px 0 4px;color:var(--brown);font-size:15px;">各年段的欄位代碼</h3>
+        <p class="hint" style="margin:0 0 12px;">表單第一頁先選年段,才會跳到對應年段那一頁——每個年段自己那一頁,連應到人數、各假別、感染這些欄位的
+        entry 代碼都不一樣,不是只有班級與導師。下面選一個年段,編輯完換下一個年段前資料會自動記住,全部設定好再按最下面的「儲存設定」。</p>
+        <div class="field-row">
+          <label>目前編輯</label>
+          <select id="cfgBranchSelect" style="border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;">
+            <option value="7">國中部7年級</option>
+            <option value="8">國中部8年級</option>
+            <option value="9">國中部9年級</option>
+            <option value="1">高中職1年級</option>
+            <option value="2">高中職2年級</option>
+            <option value="3">高中職3年級</option>
+          </select>
+        </div>
+        <div class="field-row"><label>班級與導師代碼</label><input type="text" id="cfgBranchClassTeacher" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>應到人數</label><input type="text" id="cfgBranchExpected" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>實到人數</label><input type="text" id="cfgBranchPresent" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>公假</label><input type="text" id="cfgBranchPublic" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>事假</label><input type="text" id="cfgBranchPersonal" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>病假</label><input type="text" id="cfgBranchSick" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>曠課</label><input type="text" id="cfgBranchAbsent" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>遲到</label><input type="text" id="cfgBranchLate" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>喪假</label><input type="text" id="cfgBranchBereavement" placeholder="entry.xxxxxxx"></div>
+        <div class="field-row"><label>感染代碼</label><input type="text" id="cfgBranchInfection" placeholder="entry.xxxxxxx"></div>
+
+        <div class="field-row" style="align-items:flex-start;">
+          <label>其他固定欄位</label>
+          <textarea id="cfgExtra" rows="4" style="border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;" placeholder="每行一組,例如:&#10;entry.111111111=on&#10;entry.222222222=高中職1年級"></textarea>
+        </div>
+      </div>
+    </details>
 
     <details class="note">
       <summary>使用說明(點此展開/收合)</summary>
@@ -1316,13 +1329,23 @@ init();
 // Hide the Easter-egg strip by scrolling past it as soon as the page loads,
 // so it stays invisible during normal use — it only reappears if the user
 // pulls down past the very top (iOS's elastic overscroll/rubber-band).
+// `main{min-height:100vh}` above guarantees there's always enough page
+// height to scroll past the egg, even on the empty "no roster yet" screen.
 function hideEasterEgg(){
   const egg = document.getElementById('easterEgg');
-  if(egg) window.scrollTo(0, egg.offsetHeight);
+  if(!egg) return;
+  window.scrollTo(0, egg.offsetHeight);
+  // Some standalone-PWA / Safari combinations settle their layout a beat
+  // late, so re-assert a few times rather than trusting a single call.
+  if(window.scrollY < egg.offsetHeight){
+    requestAnimationFrame(()=> window.scrollTo(0, egg.offsetHeight));
+  }
 }
 window.addEventListener('load', hideEasterEgg);
 document.addEventListener('DOMContentLoaded', hideEasterEgg);
-setTimeout(hideEasterEgg, 50);
+window.addEventListener('pageshow', hideEasterEgg);
+window.addEventListener('orientationchange', ()=> setTimeout(hideEasterEgg, 100));
+[50, 150, 300, 600, 1000].forEach(ms => setTimeout(hideEasterEgg, ms));
 
 </script>
 
