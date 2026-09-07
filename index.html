@@ -48,6 +48,13 @@
     --safe-left:env(safe-area-inset-left, 0px);
     --safe-right:env(safe-area-inset-right, 0px);
   }
+  /* iOS 彈力回彈往下拉超過我們自己控制的彩蛋圖片範圍時,瀏覽器會露出
+     <html> 本身的背景色打底——這裡故意設成跟標題列一樣的咖啡色,這樣
+     不管彈力回彈的當下哪一層元素還沒跟上、露出多少縫隙,看到的都是
+     同一種咖啡色,不會出現顏色不一致的破綻。 */
+  html{
+    background:var(--coffee);
+  }
   body{
     margin:0;
     background:var(--cream);
@@ -197,11 +204,12 @@
     padding:0;
   }
   thead th.class-cell{width:24px;}
-  /* 班級文字用 sticky 貼在表頭下方,即使該班學生很多、合併儲存格拉得很長,
-     捲動時班級名稱仍會跟著停留在可視範圍附近,不會整個滑到看不見。 */
+  /* 班級文字原本用 position:sticky 貼在表頭下方,但這個「sticky 元素包在
+     rowspan 儲存格裡」的組合在手機 WebKit 上會有渲染 bug——即使沒有捲動,
+     也可能把同一格裡最上面一兩列的內容蓋住/擠不見。改回單純貼齊儲存格頂端,
+     不做 sticky:班級名稱只在該班第一列顯示一次,捲動時會跟著頁面一起移動、
+     不會停留,但換取穩定不出錯。 */
   .class-label{
-    position:sticky;
-    top:var(--sticky-below-head, 40px);
     display:block;
     writing-mode:vertical-rl;
     text-orientation:upright;
@@ -752,18 +760,6 @@ function hideNameTooltip(){
 document.addEventListener('click', ()=> hideNameTooltip());
 document.addEventListener('scroll', ()=> hideNameTooltip(), true);
 
-// 量測目前表頭(含系統狀態列預留高度)實際渲染出的高度,讓「班級」欄的
-// sticky 文字知道要停在多下面,才不會被表頭蓋住。表頭列高度固定,不受
-// 資料內容影響,所以只需要在渲染完/尺寸變動時重新量一次即可。
-function updateStickyOffsets(){
-  const thead = document.querySelector('#tableScroll thead');
-  if(!thead) return;
-  const h = thead.getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--sticky-below-head', `calc(${h}px + var(--safe-top))`);
-}
-window.addEventListener('resize', updateStickyOffsets);
-window.addEventListener('orientationchange', updateStickyOffsets);
-
 function renderAttendance(){
   const students = allStudentsSorted();
   const hasRoster = students.length > 0;
@@ -827,7 +823,6 @@ function renderAttendance(){
   });
 
   renderSummary();
-  requestAnimationFrame(updateStickyOffsets);
 }
 
 // Summary always reflects ALL classes in the roster (merged), since that's
@@ -1342,11 +1337,6 @@ async function init(){
   renderRosterSummary();
   await loadAttendance();
   renderAttendance();
-
-  // Re-measure a beat later too — covers cases where fonts/layout settle
-  // slightly after the first paint and the initial rAF measurement in
-  // renderAttendance() caught the header at a not-quite-final height.
-  setTimeout(updateStickyOffsets, 300);
 }
 
 init();
