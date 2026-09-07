@@ -70,9 +70,8 @@
      繼續往下拉(彈力回彈)時,window.scrollY 會變成負值,依那個負值即時把
      圖片從畫面外拉出來,拉多少露多少,放開手就彈回去藏起來。 */
   #easterEgg{
-    position:fixed;top:0;left:0;right:0;height:170px;
+    position:fixed;top:0;left:0;right:0;height:0;
     overflow:hidden;background:var(--coffee);
-    transform:translateY(-170px);
     z-index:1;
     pointer-events:none;
   }
@@ -1343,29 +1342,31 @@ async function init(){
   renderRosterSummary();
   await loadAttendance();
   renderAttendance();
+
+  // Re-measure a beat later too — covers cases where fonts/layout settle
+  // slightly after the first paint and the initial rAF measurement in
+  // renderAttendance() caught the header at a not-quite-final height.
+  setTimeout(updateStickyOffsets, 300);
 }
 
 init();
 
-// The Easter-egg image is position:fixed and sits translated fully above the
-// viewport by default (see #easterEgg CSS), so it's never part of normal
-// document flow and never needs "scrolling past" to hide it. iOS Safari
-// reports negative window.scrollY while the user holds an elastic
-// overscroll bounce at the very top of the page; we mirror that negative
-// amount into the image's translateY so it slides down exactly as far as
-// the user pulls, and slides back out of view the moment they let go.
+// The Easter-egg image is position:fixed with height:0 by default (see
+// #easterEgg CSS), so it's never part of normal document flow and takes up
+// no space until revealed. iOS Safari reports negative window.scrollY while
+// the user holds an elastic overscroll bounce at the very top of the page —
+// we grow the image's height to match that pull distance exactly (rather
+// than capping it and sliding a fixed-size image into view), so the coffee
+// backdrop always fills the whole gap the bounce opens up above the header,
+// with no leftover blank strip no matter how hard the user pulls.
 (function setupEasterEgg(){
   const egg = document.getElementById('easterEgg');
   if(!egg) return;
-  const HEIGHT = 170;
+  const MAX_HEIGHT = 500; // generous cap just to avoid absurd image stretching on a very long pull
   function onScroll(){
     const y = window.scrollY || window.pageYOffset || 0;
-    if(y < 0){
-      const pull = Math.min(-y, HEIGHT);
-      egg.style.transform = `translateY(${pull - HEIGHT}px)`;
-    } else {
-      egg.style.transform = `translateY(-${HEIGHT}px)`;
-    }
+    const pull = y < 0 ? Math.min(-y, MAX_HEIGHT) : 0;
+    egg.style.height = pull + 'px';
   }
   window.addEventListener('scroll', onScroll, { passive: true });
 })();
