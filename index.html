@@ -247,6 +247,23 @@
     text-overflow:ellipsis;
     display:none;
   }
+  .copy-toast{
+    position:fixed;
+    background:var(--st-green);
+    color:#fff;
+    padding:10px 14px;
+    border-radius:10px;
+    font-size:13px;
+    line-height:1.5;
+    box-shadow:var(--shadow-sm);
+    z-index:300;
+    pointer-events:none;
+    white-space:pre-line;
+    max-width:78vw;
+    display:none;
+  }
+  .copy-toast .toast-title{font-weight:800;margin-bottom:4px;display:block;}
+  .copy-toast .toast-body{font-weight:500;opacity:0.95;}
   .status-dot{
     width:27px;height:27px;border-radius:50%;border:1.6px solid var(--brown);background:#fff;
     cursor:pointer;margin:0 auto;display:flex;align-items:center;justify-content:center;
@@ -276,6 +293,28 @@
   .summary-item.st-公假 .num{color:var(--st-blue);}
   .summary-item.st-喪假 .num{color:var(--st-purple);}
   .summary-item.st-遲到 .num{color:var(--st-black);}
+  .summary-item .name-list{
+    margin-top:8px;font-size:11.5px;color:var(--ink-soft);line-height:1.6;
+    text-align:left;border-top:1.5px dashed var(--line-soft);padding-top:6px;
+  }
+  .name-list-line{
+    cursor:pointer;padding:2px 4px;border-radius:6px;
+    transition:background 0.1s ease;
+  }
+  .name-list-line:hover, .name-list-line:active{background:var(--tan-pale);color:var(--brown);}
+  .switch-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);font-weight:700;cursor:pointer;user-select:none;}
+  .switch{position:relative;display:inline-block;width:40px;height:22px;}
+  .switch input{opacity:0;width:0;height:0;position:absolute;}
+  .switch-track{
+    position:absolute;inset:0;background:#DDD0B8;border:2px solid var(--brown);
+    border-radius:20px;transition:background 0.15s ease;
+  }
+  .switch-thumb{
+    position:absolute;top:1px;left:1px;width:14px;height:14px;background:#fff;
+    border:1.5px solid var(--brown);border-radius:50%;transition:transform 0.15s ease;
+  }
+  .switch input:checked + .switch-track{background:var(--st-green);}
+  .switch input:checked + .switch-track .switch-thumb{transform:translateX(17px);}
   .submit-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .submit-status{font-size:13.5px;color:var(--ink-soft);font-weight:600;}
   .submit-status.ok{color:var(--st-green);}
@@ -370,8 +409,17 @@
   </div>
 
   <div class="card" id="summaryCard" style="display:none;">
-    <h2>統計(合併所有班級)</h2>
-    <p class="hint">下面數字與清單會加總目前名單裡的所有班級,送出表單時就是用這份合併結果。</p>
+    <div class="toolbar">
+      <h2 style="margin:0;">統計(合併所有班級)</h2>
+      <label class="switch-row" id="summaryListToggleRow">
+        <span>顯示名單</span>
+        <span class="switch">
+          <input type="checkbox" id="summaryListToggle">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
+      </label>
+    </div>
+    <p class="hint">下面數字與清單會加總目前名單裡的所有班級,送出表單時就是用這份合併結果。開啟右上角「顯示名單」後,點一下某位學生的名字,就會複製一則只通知那位家長的 LINE 訊息(不是整班的出席狀況),貼到 LINE 對話視窗傳送即可。</p>
     <div class="summary-grid" id="summaryGrid"></div>
     <div class="submit-row">
       <button class="btn-primary" id="previewBtn">開啟預填表單(建議使用)</button>
@@ -395,7 +443,6 @@
     <hr style="border:none;border-top:2px solid var(--line-soft);margin:22px 0;">
 
     <h2 class="serif">表單欄位設定</h2>
-    <div class="field-row"><label>表單網址</label><input type="text" id="cfgUrl" placeholder=".../formResponse"></div>
 
     <div class="field-row" style="align-items:flex-start;">
       <label>班級與導師</label>
@@ -404,6 +451,52 @@
         </select>
       </div>
     </div>
+
+    <div class="field-row"><label id="urlSecretLabel" style="cursor:default;">表單網址</label><input type="text" id="cfgUrl" placeholder="留空則不會送出"></div>
+
+    <div class="field-row" style="align-items:flex-start;">
+      <label>LINE 訊息開頭</label>
+      <div style="width:100%;">
+        <textarea id="cfgLineBasic" rows="2" style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;"></textarea>
+        <p class="hint" style="margin:6px 0 0;">點統計名單裡某位學生時,會複製一則只通知那位家長的 LINE 訊息,格式是「這段開頭 + 日期時間(自動產生) + 那位學生的班級座號姓名與狀態」。這裡只能改開頭問候語,日期時間不能編輯。</p>
+      </div>
+    </div>
+
+    <details class="note">
+      <summary>進階:同步紀錄到 Google 試算表(選用,點此展開)</summary>
+      <div class="note-body">
+        <p style="margin:0 0 10px;">這是額外的備份機制:每次點名完,除了送出 Google 表單,也可以「同時」把
+        今天的統計數字寫進一份你自己的 Google 試算表裡,多一份不受表單分頁、驗證問題影響的永久紀錄。
+        這個功能完全選用,不設定也不影響原本送出表單的功能。</p>
+
+        <p style="margin:14px 0 6px;font-weight:800;color:var(--brown);">設定步驟(第一次設定大約 5 分鐘,跟著做就好):</p>
+        <ol style="margin:0 0 12px;padding-left:22px;font-size:13.5px;line-height:1.8;">
+          <li>到 <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> 開一份新的空白試算表,當作點名紀錄本。</li>
+          <li>上方選單點「擴充功能」→「Apps Script」,會開啟一個程式碼編輯畫面。</li>
+          <li>把畫面裡原本的內容全部刪掉,改貼上下面這一段程式碼(可以按「複製程式碼」按鈕)。</li>
+          <li>按上面工具列的「儲存」(磁片圖示),隨便取個名字。</li>
+          <li>按「部署」→「新增部署作業」。</li>
+          <li>「選取類型」齒輪圖示選「網頁應用程式」。</li>
+          <li>「具有存取權的使用者」選「所有人」(Anyone),按「部署」。</li>
+          <li>如果跳出「需要授權」的畫面:選你自己的 Google 帳號 →
+          如果看到「Google 尚未驗證這個應用程式」的警告,點「進階」→「前往(專案名稱)(不安全)」→「允許」。
+          這個警告是因為程式是你自己貼的、還沒有申請 Google 官方認證,不是真的有問題,自己貼的程式可以放心允許。</li>
+          <li>完成後會顯示一個「網頁應用程式」網址,把它複製起來。</li>
+          <li>貼到下面「試算表同步網址」欄位,按最下面的「儲存設定」。</li>
+        </ol>
+
+        <p style="margin:14px 0 6px;font-weight:800;color:var(--brown);">程式碼(複製貼到 Apps Script 編輯畫面):</p>
+        <textarea id="appsScriptCode" rows="12" readonly style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:12px;font-family:monospace;"></textarea>
+        <button type="button" class="btn-secondary" id="copyAppsScriptBtn" style="margin-top:8px;">複製程式碼</button>
+
+        <div class="field-row" style="margin-top:16px;">
+          <label>試算表同步網址</label>
+          <input type="text" id="cfgSheetWebhook" placeholder="貼上你部署好的網頁應用程式網址">
+        </div>
+        <button type="button" class="btn-primary" id="syncSheetBtn" style="margin-top:6px;">同步目前名單狀態到試算表</button>
+        <span class="submit-status" id="sheetSyncStatus" style="display:block;margin-top:6px;"></span>
+      </div>
+    </details>
 
     <details class="note">
       <summary>班級與導師名單管理(點此展開/收合)</summary>
@@ -496,6 +589,7 @@
 </div>
 
 <div class="name-tooltip" id="nameTooltip"></div>
+<div class="copy-toast" id="copyToast"></div>
 
 <div class="modal-overlay" id="confirmOverlay">
   <div class="modal" style="max-width:340px;">
@@ -515,6 +609,7 @@ const STATUSES = ['曠課','事假','病假','出席','公假','喪假','遲到'
 let rosterRaw = [];       // [{class, no, name, zhuyinName}] — permanent roster, all classes
 let classes = [];         // unique class names
 let currentStatus = {};   // { [`${class}::${no}`]: status } for the selected date, all classes
+let showSummaryLists = false; // 統計卡片右上角開關:是否在各假別下方列出學生名單
 
 // The form branches by grade level (page 1 "選擇年段"), and each branch's
 // page is a genuinely separate copy of EVERY question — 班級與導師、應到人數、
@@ -573,14 +668,48 @@ const DEFAULT_CLASS_TEACHER_OPTIONS = [
   '396多三實.彭懿慈','397電三實.張雋青',
 ];
 
+// 為了避免表單網址被隨手打開設定的人看到、複製走(該表單需要登入驗證,
+// 知道網址不代表能亂填,但仍不希望被隨意公開),預設不帶入這個網址,
+// 畫面上「表單網址」四個字快速點 10 下才會自動填入——這只是不讓網址顯示
+// 在畫面上,並不是真正加密;技術上懂得看網頁原始碼的人還是找得到,
+// 所以真正的防線仍然是表單本身要求的登入驗證,這裡純粹是防止有人不小心
+// 在設定畫面瞄到網址就複製走。
+const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf1V9Wqv4BXLpA81kUJ4K8Mb8G8eni3qVbpFQ/formResponse';
+
+// 貼給老師去 Apps Script 編輯畫面貼上的程式碼。doPost 收到我們送過去的
+// 表單資料(用一般表單編碼送出,e.parameter.payload 就是我們塞的 JSON 字串),
+// 解析後在試算表最下面新增一列。跟送 Google 表單一樣,用隱藏表單送出,
+// 不用 fetch,完全避開瀏覽器 CORS 的問題。
+const APPS_SCRIPT_CODE = `function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = JSON.parse(e.parameter.payload);
+  sheet.appendRow([
+    new Date(),
+    data.date || '',
+    data.classTeacher || '',
+    data.expected || '',
+    data.present || '',
+    data.publicLeave || '',
+    data.personalLeave || '',
+    data.sickLeave || '',
+    data.absent || '',
+    data.late || '',
+    data.bereavement || ''
+  ]);
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
 const DEFAULT_CONFIG = {
-  url: 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf1V9Wqv4BXLpA81kUJ4K8Mb8G8eni3qVbpFQ/formResponse',
+  url: '',
   gradeEntry: 'entry.1270243747',
   infectionValue: '無',
   branches: JSON.parse(JSON.stringify(DEFAULT_BRANCHES)),
   classTeacherOptions: DEFAULT_CLASS_TEACHER_OPTIONS.slice(),
   classTeacherValue: '195商一甲.李智威',
   extraFields: '',
+  sheetWebhookUrl: '',
+  lineBasicMessage: '家長早,',
 };
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
@@ -837,6 +966,12 @@ function renderAttendance(){
 // Summary always reflects ALL classes in the roster (merged), since that's
 // what a single form submission will contain — not just the class currently
 // being viewed/marked.
+// 依目前每位學生的狀態,整理出某個狀態底下的學生清單,用來顯示在統計卡片
+// 各假別下方(開關開啟時)——這裡不加「號」,每人各佔一行,方便閱讀。
+function studentsWithStatus(status){
+  return allStudentsSorted().filter(s => (currentStatus[statusKey(s.class, s.no)] || '出席') === status);
+}
+
 function renderSummary(){
   const counts = {出席:0, 公假:0, 事假:0, 病假:0, 曠課:0, 遲到:0, 喪假:0};
   rosterRaw.forEach(s=>{
@@ -849,19 +984,35 @@ function renderSummary(){
   const grid = $('summaryGrid');
   grid.innerHTML = '';
   const items = [
-    {label:'應到人數', num:expected, cls:''},
-    {label:'實到人數', num:present, cls:''},
-    {label:'曠課', num:counts['曠課'], cls:'st-曠課'},
-    {label:'事假', num:counts['事假'], cls:'st-事假'},
-    {label:'病假', num:counts['病假'], cls:'st-病假'},
-    {label:'公假', num:counts['公假'], cls:'st-公假'},
-    {label:'喪假', num:counts['喪假'], cls:'st-喪假'},
-    {label:'遲到', num:counts['遲到'], cls:'st-遲到'},
+    {label:'應到人數', num:expected, cls:'', status:null},
+    {label:'實到人數', num:present, cls:'', status:null},
+    {label:'曠課', num:counts['曠課'], cls:'st-曠課', status:'曠課'},
+    {label:'事假', num:counts['事假'], cls:'st-事假', status:'事假'},
+    {label:'病假', num:counts['病假'], cls:'st-病假', status:'病假'},
+    {label:'公假', num:counts['公假'], cls:'st-公假', status:'公假'},
+    {label:'喪假', num:counts['喪假'], cls:'st-喪假', status:'喪假'},
+    {label:'遲到', num:counts['遲到'], cls:'st-遲到', status:'遲到'},
   ];
   items.forEach(it=>{
     const div = document.createElement('div');
     div.className = 'summary-item ' + it.cls;
     div.innerHTML = `<div class="num">${it.num}</div><div class="label">${it.label}</div>`;
+    if(showSummaryLists && it.status && it.num > 0){
+      const listDiv = document.createElement('div');
+      listDiv.className = 'name-list';
+      studentsWithStatus(it.status).forEach(s=>{
+        const line = document.createElement('div');
+        line.className = 'name-list-line';
+        line.textContent = `${s.class}${s.no}${s.name}`;
+        line.title = '點一下複製這位家長的 LINE 通知';
+        line.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          copyIndividualLineMessage(line, s, it.status);
+        });
+        listDiv.appendChild(line);
+      });
+      div.appendChild(listDiv);
+    }
     grid.appendChild(div);
   });
 }
@@ -938,6 +1089,74 @@ $('dateInput').addEventListener('change', async ()=>{
 
 // 一鍵把今天所有學生(不分班級)都設為「出席」,取代逐一點按;
 // 會覆蓋掉目前已經點過的狀態,所以先用自訂確認視窗跟老師確認一次。
+// 按下「全體出席」時放一段短暫的煙火動畫,增加一點小驚喜。純 canvas 畫粒子,
+// 動畫跑完(約 1.3 秒)就自動把 canvas 移除,不會留在畫面上或佔用效能。
+function launchFireworks(){
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.zIndex = '9999';
+  canvas.style.pointerEvents = 'none';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const colors = ['#F6C744','#EF9A3B','#D9503F','#5C9A72','#5B84AC','#8B6BA8','#FFFFFF'];
+  const particles = [];
+  const burstCount = 4;
+  for(let b=0; b<burstCount; b++){
+    const cx = canvas.width * (0.25 + 0.5*Math.random());
+    const cy = canvas.height * (0.2 + 0.35*Math.random());
+    const color = colors[Math.floor(Math.random()*colors.length)];
+    const n = 34;
+    for(let i=0; i<n; i++){
+      const angle = (Math.PI*2*i)/n + Math.random()*0.2;
+      const speed = 2.5 + Math.random()*3.5;
+      particles.push({
+        x:cx, y:cy,
+        vx:Math.cos(angle)*speed,
+        vy:Math.sin(angle)*speed,
+        color, life:1,
+        delay: b*90,
+      });
+    }
+  }
+
+  const start = performance.now();
+  const DURATION = 1300;
+  function frame(now){
+    const t = now - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let anyAlive = false;
+    particles.forEach(p=>{
+      if(t < p.delay) { anyAlive = true; return; }
+      const age = t - p.delay;
+      if(age > 1000) return;
+      anyAlive = true;
+      const progress = age / 1000;
+      const x = p.x + p.vx * age * 0.06;
+      const y = p.y + p.vy * age * 0.06 + 0.00045 * age * age;
+      const alpha = Math.max(0, 1 - progress);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.6, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    if(t < DURATION && anyAlive){
+      requestAnimationFrame(frame);
+    } else {
+      canvas.remove();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
 $('allPresentBtn').addEventListener('click', async ()=>{
   const ok = await showConfirm('確定要將今天所有學生都設為「出席」嗎?目前已點的名會被覆蓋。');
   if(!ok) return;
@@ -946,7 +1165,91 @@ $('allPresentBtn').addEventListener('click', async ()=>{
   });
   await saveAttendance();
   renderAttendance();
+  launchFireworks();
 });
+
+// LINE 個別通知:針對「一位學生」組出一則簡短訊息,點名單上的名字就直接
+// 複製這則訊息,貼到 LINE 私訊那位家長——不是整班的出席狀況群發給大家。
+// 「基本訊息內容」那段開頭問候語在設定裡可以自訂,日期時間是自動產生、
+// 不能編輯(畢竟每次點的當下時間都不同)。
+const WEEKDAY_CHAR = ['日','一','二','三','四','五','六'];
+function currentDateTimeLabel(){
+  const dateStr = $('dateInput').value; // YYYY-MM-DD
+  const d = new Date(dateStr + 'T00:00:00');
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const weekday = WEEKDAY_CHAR[d.getDay()];
+  // 時間用「現在實際的時間」(點的當下幾點幾分),不是點名日期本身的時間,
+  // 因為日期欄位只存年月日,沒有時間。
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  return `${y}/${String(m).padStart(2,'0')}/${String(day).padStart(2,'0')} (${weekday}) ${hh}:${mm}`;
+}
+function buildIndividualLineMessage(student, status){
+  const basic = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
+  // LINE 通知裡不用「曠課」這個字眼,換成語氣比較中性的「尚未出席」——
+  // 只影響複製出去的訊息文字,畫面上的圖示、統計數字仍然照樣叫「曠課」。
+  const displayStatus = status === '曠課' ? '尚未出席' : status;
+  const studentLine = `${student.class}班${student.no}號${student.name} ${displayStatus}`;
+  return `${basic}\n${currentDateTimeLabel()}\n${studentLine}`;
+}
+
+// 小提示氣泡,點完名字後在旁邊跳出來確認,一秒多後自動消失,跟姓名格那個
+// 小提示是同一套邏輯,獨立開一個 id 避免互相干擾。改成把實際複製的文字內容
+// 也一起顯示出來,一來比較直覺(看得到到底複製了什麼),二來萬一瀏覽器的
+// 自動複製沒有真的成功,至少內容就在眼前,還是能自己選取複製。
+function showCopyToast(target, text){
+  const tip = $('copyToast');
+  tip.innerHTML = '';
+  const title = document.createElement('span');
+  title.className = 'toast-title';
+  title.textContent = '已複製文字:';
+  const body = document.createElement('span');
+  body.className = 'toast-body';
+  body.textContent = text;
+  tip.appendChild(title);
+  tip.appendChild(body);
+  tip.style.display = 'block';
+  const rect = target.getBoundingClientRect();
+  let top = rect.top - 90;
+  requestAnimationFrame(()=>{
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    if(top < 4) top = rect.bottom + 6;
+    if(top + th > window.innerHeight - 8) top = window.innerHeight - th - 8;
+    let left = rect.left;
+    left = Math.min(Math.max(8, left), window.innerWidth - tw - 8);
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  });
+  clearTimeout(showCopyToast._t);
+  showCopyToast._t = setTimeout(()=>{ tip.style.display = 'none'; }, 2600);
+}
+
+async function copyIndividualLineMessage(target, student, status){
+  const text = buildIndividualLineMessage(student, status);
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    // 部分瀏覽器情境(非使用者直接互動、或不支援 clipboard API)會失敗,
+    // 退回用隱藏 textarea + execCommand('copy') 這個較舊但相容性更廣的做法
+    // 再試一次;不管哪一種方式成功,都會顯示同一種提示。
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }catch(e2){ /* 兩種方式都失敗時,至少下面還是會顯示文字內容讓使用者自己複製 */ }
+  }
+  showCopyToast(target, text);
+}
 
 // Settings modal
 // While the settings modal is open, edits to the currently-shown branch's
@@ -1084,11 +1387,31 @@ $('settingsBtn').addEventListener('click', ()=>{
 });
 $('closeSettingsBtn').addEventListener('click', ()=>{ $('settingsOverlay').classList.remove('open'); });
 
+// 「表單網址」四個字快速點 10 下,自動帶入學校內部使用的網址——這是不想
+// 讓網址平常就顯示在畫面上,只有知道這個小動作的校內師長才能叫出來。
+// 1.2 秒內沒有繼續點,計數會重置,避免不小心連點好幾下就誤觸發。
+(function setupSecretUrlTap(){
+  let tapCount = 0;
+  let tapTimer = null;
+  $('urlSecretLabel').addEventListener('click', ()=>{
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(()=>{ tapCount = 0; }, 1200);
+    if(tapCount >= 10){
+      tapCount = 0;
+      $('cfgUrl').value = SECRET_FORM_URL;
+      alert('已帶入表單網址,記得按最下面的「儲存設定」才會存起來。');
+    }
+  });
+})();
+
 $('resetSettingsBtn').addEventListener('click', async ()=>{
-  const ok = await showConfirm('確定要還原成預設的表單網址與 entry 代碼嗎?(班級與導師名單不會被這個按鈕影響)');
+  const ok = await showConfirm('確定要還原成預設的表單網址與 entry 代碼嗎?(班級與導師名單、試算表同步網址、LINE 訊息開頭不會被這個按鈕影響)');
   if(!ok) return;
   const keepOptions = config.classTeacherOptions;
-  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions });
+  const keepWebhook = config.sheetWebhookUrl;
+  const keepLineBasic = config.lineBasicMessage;
+  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions, sheetWebhookUrl: keepWebhook, lineBasicMessage: keepLineBasic });
   await saveConfig();
   $('cfgUrl').value = config.url;
   $('cfgGradeEntry').value = config.gradeEntry;
@@ -1099,6 +1422,8 @@ $('resetSettingsBtn').addEventListener('click', async ()=>{
   loadBranchIntoFields(currentBranchDigit);
   setClassTeacherValue(config.classTeacherValue);
   $('cfgExtra').value = config.extraFields;
+  $('cfgSheetWebhook').value = config.sheetWebhookUrl;
+  $('cfgLineBasic').value = config.lineBasicMessage;
   $('cfgBulkPaste').value = buildBulkPasteText();
   alert('已還原成預設值並儲存。');
 });
@@ -1187,6 +1512,8 @@ $('saveSettingsBtn').addEventListener('click', async ()=>{
     classTeacherOptions: config.classTeacherOptions,
     classTeacherValue: getClassTeacherValue(),
     extraFields: $('cfgExtra').value,
+    sheetWebhookUrl: $('cfgSheetWebhook').value.trim(),
+    lineBasicMessage: $('cfgLineBasic').value,
   };
   await saveConfig();
   $('settingsOverlay').classList.remove('open');
@@ -1325,10 +1652,70 @@ $('submitBtn').addEventListener('click', ()=>{
   statusEl.className = 'submit-status ok';
 });
 
+$('copyAppsScriptBtn').addEventListener('click', async ()=>{
+  const box = $('appsScriptCode');
+  try{
+    await navigator.clipboard.writeText(APPS_SCRIPT_CODE);
+    alert('程式碼已複製,貼到 Apps Script 編輯畫面就可以了。');
+  }catch(e){
+    box.focus();
+    box.select();
+    alert('無法自動複製,程式碼已幫你選取,請自己按複製。');
+  }
+});
+
+// 同步目前的統計數字到 Google 試算表。跟送 Google 表單用一樣的「隱藏表單 +
+// iframe」技巧送出,避開瀏覽器 CORS 限制;因為是導頁式送出,前端沒辦法讀到
+// Apps Script 真正回傳的內容,所以一樣只能顯示「已送出」,無法 100% 確認
+// 試算表那邊真的寫入成功,建議送出後自己回去試算表看一眼。
+$('syncSheetBtn').addEventListener('click', ()=>{
+  const statusEl = $('sheetSyncStatus');
+  const url = $('cfgSheetWebhook').value.trim();
+  if(!url){
+    statusEl.textContent = '請先貼上「試算表同步網址」並儲存設定';
+    statusEl.className = 'submit-status err';
+    return;
+  }
+  const values = buildSubmissionValues();
+  const digit = branchDigitFor(config.classTeacherValue);
+  const b = (digit && config.branches[digit]) ? config.branches[digit] : {};
+  const payload = {
+    date: $('dateInput').value,
+    classTeacher: config.classTeacherValue,
+    expected: b.expected ? values[b.expected] : '',
+    present: b.present ? values[b.present] : '',
+    publicLeave: b.publicLeave ? values[b.publicLeave] : '',
+    personalLeave: b.personalLeave ? values[b.personalLeave] : '',
+    sickLeave: b.sickLeave ? values[b.sickLeave] : '',
+    absent: b.absent ? values[b.absent] : '',
+    late: b.late ? values[b.late] : '',
+    bereavement: b.bereavement ? values[b.bereavement] : '',
+  };
+
+  const form = document.createElement('form');
+  form.action = url;
+  form.method = 'POST';
+  form.target = 'hiddenSubmitFrame';
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'payload';
+  input.value = JSON.stringify(payload);
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+
+  statusEl.textContent = '已送出同步請求,建議去試算表確認一下有沒有新增一列。';
+  statusEl.className = 'submit-status ok';
+});
+
 async function init(){
   $('dateInput').value = new Date().toISOString().slice(0,10);
   await loadRoster();
   await loadConfig();
+
+  showSummaryLists = lsGet('show-summary-lists') === '1';
+  $('summaryListToggle').checked = showSummaryLists;
 
   $('cfgUrl').value = config.url || '';
   $('cfgGradeEntry').value = config.gradeEntry || '';
@@ -1341,12 +1728,21 @@ async function init(){
   setClassTeacherValue(config.classTeacherValue || '');
   refreshClassTeacherListTextarea();
   $('cfgExtra').value = config.extraFields || '';
+  $('cfgSheetWebhook').value = config.sheetWebhookUrl || '';
+  $('cfgLineBasic').value = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
+  $('appsScriptCode').value = APPS_SCRIPT_CODE;
 
   computeClasses();
   renderRosterSummary();
   await loadAttendance();
   renderAttendance();
 }
+
+$('summaryListToggle').addEventListener('change', (e)=>{
+  showSummaryLists = e.target.checked;
+  lsSet('show-summary-lists', showSummaryLists ? '1' : '0');
+  renderSummary();
+});
 
 init();
 
