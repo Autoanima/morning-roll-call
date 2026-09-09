@@ -1291,8 +1291,13 @@ $('cfgBranchSelect').addEventListener('change', (e)=>{
 
 function buildBulkPasteText(){
   saveFieldsIntoBranch(currentBranchDigit);
+  // 表單網址不放實際內容進來——這裡是預先幫你整理好、方便複製去修改的
+  // 文字,如果把真正的網址也印在畫面上,等於平白多了一個看得到網址的地方,
+  // 跟隱藏網址那個功能互相矛盾。只顯示「有沒有設定」,真要換網址時,直接
+  // 把新的網址整行貼進來覆蓋就好(解析邏輯還是照樣會抓)。
+  const urlLine = $('cfgUrl').value ? '表單網址 (已設定,若要更換請直接貼上新的網址覆蓋這一行)' : '表單網址 (尚未設定)';
   const lines = [
-    `表單網址 ${$('cfgUrl').value}`,
+    urlLine,
     `選擇年段 ${$('cfgGradeEntry').value}`,
   ];
   const labels = {
