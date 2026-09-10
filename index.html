@@ -450,27 +450,6 @@
     </div>
     <div class="roster-summary" id="rosterSummary"></div>
 
-    <p class="hint" style="margin-top:16px;">也可以不上傳檔案,改貼 Google 試算表的網址,直接從試算表讀取名單
-    (欄位規則跟上面 Excel 檔一樣)。</p>
-    <div class="field-row">
-      <label>試算表網址</label>
-      <input type="text" id="rosterSheetUrl" placeholder="貼上 Google 試算表的網址">
-    </div>
-    <button type="button" class="btn-secondary" id="loadSheetRosterBtn" style="margin-top:6px;">立即從試算表讀取名單一次</button>
-    <span class="submit-status" id="sheetRosterStatus" style="display:block;margin-top:6px;"></span>
-
-    <details class="note" style="margin-top:10px;">
-      <summary>權限提醒(點此展開)</summary>
-      <div class="note-body">
-        <p style="margin:0;padding:10px 12px;background:#FCE8E6;border:2px solid var(--st-red);border-radius:8px;color:var(--brown);font-weight:700;font-size:13px;line-height:1.6;">
-          ⚠️ 這個功能是瀏覽器直接連到 Google 公開的試算表網址讀取資料,沒有經過任何登入,
-          所以試算表的共用權限必須設成「知道連結的人均可查看」才讀得到;如果維持預設的「限制」
-          (只有你自己或特定帳號看得到),讀取會直接失敗。等於這份試算表只要有連結,任何人都能打開查看
-          (但不能編輯)——如果名單裡有你不想公開的資訊,建議還是用上傳 Excel 檔的方式,不要用這個功能。
-        </p>
-      </div>
-    </details>
-
     <hr style="border:none;border-top:2px solid var(--line-soft);margin:22px 0;">
 
     <h2 class="serif">表單欄位設定</h2>
@@ -918,9 +897,7 @@ function normalizeHeader(h){
   return String(h||'').trim();
 }
 
-// 把「第一列是欄位名稱、之後每列是一位學生」的表格資料(不管是從 xlsx
-// 讀出來的,還是從 Google 試算表 CSV 讀出來的)轉成名單格式。xlsx 上傳
-// 和試算表網址匯入共用這一段比對邏輯,兩邊維持一致。
+// 把「第一列是欄位名稱、之後每列是一位學生」的表格資料轉成名單格式。
 function rowsToRoster(rows){
   if(rows.length < 2) return [];
 
@@ -956,46 +933,6 @@ function parseWorkbook(arrayBuffer){
   const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
   return rowsToRoster(rows);
 }
-
-// 簡單的 CSV 解析(處理有雙引號包住、裡面可能有逗號或換行的欄位),
-// 用來解析從 Google 試算表匯出的 CSV 文字。
-function parseCSVRows(text){
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for(let i=0; i<text.length; i++){
-    const c = text[i];
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){ field += '"'; i++; }
-        else { inQuotes = false; }
-      } else {
-        field += c;
-      }
-    } else {
-      if(c === '"'){ inQuotes = true; }
-      else if(c === ','){ row.push(field); field = ''; }
-      else if(c === '\r'){ /* 忽略,換行以 \n 為準 */ }
-      else if(c === '\n'){ row.push(field); field = ''; rows.push(row); row = []; }
-      else { field += c; }
-    }
-  }
-  if(field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
-  return rows;
-}
-
-// 從使用者貼的 Google 試算表網址,組出可以直接抓到 CSV 內容的匯出網址。
-// 支援 /d/ID/edit、/d/ID/edit#gid=xxx、/d/ID/view 等常見網址格式。
-function buildSheetExportUrl(url){
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if(!idMatch) return null;
-  const id = idMatch[1];
-  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
-  const gid = gidMatch ? gidMatch[1] : '0';
-  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-}
-
 
 function computeClasses(){
   classes = [...new Set(rosterRaw.map(s => s.class).filter(Boolean))];
@@ -1280,58 +1217,6 @@ $('xlsxFile').addEventListener('change', (e)=>{
     }
   };
   reader.readAsArrayBuffer(file);
-});
-
-// 從 Google 試算表網址讀取名單:瀏覽器直接連到 Google 試算表的公開 CSV
-// 匯出網址抓資料,沒有經過任何登入或後端伺服器,所以只有「知道連結的人
-// 均可查看」的試算表才讀得到——權限不對時,連到的多半是一個要求登入的
-// HTML 網頁而不是 CSV 資料,或是被瀏覽器的 CORS 機制擋下來,兩種情況
-// 我們都當作失敗處理,提醒使用者去檢查共用權限設定。
-$('loadSheetRosterBtn').addEventListener('click', async ()=>{
-  const statusEl = $('sheetRosterStatus');
-  const url = $('rosterSheetUrl').value.trim();
-  if(!url){
-    statusEl.textContent = '請先貼上 Google 試算表的網址';
-    statusEl.className = 'submit-status err';
-    return;
-  }
-  const exportUrl = buildSheetExportUrl(url);
-  if(!exportUrl){
-    statusEl.textContent = '看起來不是有效的 Google 試算表網址';
-    statusEl.className = 'submit-status err';
-    return;
-  }
-  statusEl.textContent = '讀取中...';
-  statusEl.className = 'submit-status';
-  try{
-    const resp = await fetch(exportUrl);
-    if(!resp.ok) throw new Error('http-' + resp.status);
-    const text = await resp.text();
-    // 權限不足時,Google 常常會回傳一個要求登入的 HTML 頁面而不是 CSV
-    // 內容——用開頭是不是 "<" 簡單判斷,不是真的 CSV 資料就當作失敗。
-    if(text.trim().startsWith('<')){
-      throw new Error('permission');
-    }
-    const rows = parseCSVRows(text);
-    const parsed = rowsToRoster(rows);
-    if(parsed.length === 0){
-      statusEl.textContent = '讀到試算表了,但沒有辨識出班級/座號/姓名欄位,請確認第一列有這些欄位名稱。';
-      statusEl.className = 'submit-status err';
-      return;
-    }
-    rosterRaw = parsed;
-    await saveRoster();
-    currentStatus = {};
-    computeClasses();
-    renderRosterSummary();
-    await loadAttendance();
-    renderAttendance();
-    statusEl.textContent = `已成功從試算表匯入 ${parsed.length} 位學生。`;
-    statusEl.className = 'submit-status ok';
-  }catch(err){
-    statusEl.textContent = '讀取失敗,最常見的原因是這份試算表的共用權限不是「知道連結的人均可查看」,請到 Google 試算表的「共用」設定確認後再試一次。';
-    statusEl.className = 'submit-status err';
-  }
 });
 
 $('clearRosterBtn').addEventListener('click', async ()=>{
