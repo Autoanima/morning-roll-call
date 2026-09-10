@@ -751,7 +751,7 @@ const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf
 // 把錯誤訊息寫進 Apps Script 的「執行項目」紀錄,方便對照原因。
 const APPS_SCRIPT_CODE = `function doGet(e) {
   return ContentService.createTextOutput(
-    '早晨點名同步服務運作中 ✓\n\n如果你在瀏覽器分頁看到這行字,代表這個網址部署成功、\n可以貼到工具設定的「試算表同步網址」欄位使用。\n\n這個頁面本身不會寫入任何資料,只是測試連線用。'
+    '早晨點名同步服務運作中 ✓\\n\\n如果你在瀏覽器分頁看到這行字,代表這個網址部署成功、\\n可以貼到工具設定的「試算表同步網址」欄位使用。\\n\\n這個頁面本身不會寫入任何資料,只是測試連線用。'
   );
 }
 
