@@ -532,10 +532,9 @@
         </ol>
 
         <p style="margin:0 0 12px;padding:10px 12px;background:#FFF6E0;border:1.5px solid var(--sun-yellow);border-radius:8px;color:var(--brown);font-size:13px;line-height:1.6;">
-          💡 因為送出同步的方式(跟送 Google 表單一樣的隱藏表單技巧)沒辦法讓網頁讀到執行結果,
-          「開啟預填表單」按了以後永遠只會顯示「已同步」,不代表一定成功。真的懷疑同步沒生效時,
-          最準確的檢查方式是回到 Apps Script 編輯畫面,左側選單點「執行項目」,看最近一次執行是成功
-          還是有錯誤訊息——錯誤原因都會完整記錄在那裡。
+          💡 「開啟預填表單」按下去後,狀態列會誠實顯示這次同步是成功還是失敗(不會再固定顯示「已同步」)。
+          如果一直顯示失敗,最準確的檢查方式是回到 Apps Script 編輯畫面,左側選單點「執行項目」,看最近一次
+          執行是成功還是有錯誤訊息——錯誤原因都會完整記錄在那裡。
         </p>
 
         <p style="margin:14px 0 6px;font-weight:800;color:var(--brown);">程式碼(複製貼到 Apps Script 編輯畫面):</p>
@@ -547,10 +546,15 @@
           <label>試算表同步網址</label>
           <input type="text" id="cfgSheetWebhook" placeholder="貼上你部署好的網頁應用程式網址,留空則不會同步">
         </div>
-        <button type="button" class="btn-secondary" id="testSheetWebhookBtn" style="margin-top:6px;">測試連線</button>
-        <p class="hint" style="margin:6px 0 0;">按下去會在新分頁開啟這個網址。看到「早晨點名同步服務運作中」代表部署成功;
-        看到 Google 的錯誤畫面,代表部署設定還有問題,請回頭檢查上面的步驟。設定好這個網址後,按「開啟預填表單」時
-        會自動一併同步,不需要另外按其他按鈕。</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">
+          <button type="button" class="btn-secondary" id="testSheetWebhookBtn">測試連線</button>
+          <button type="button" class="btn-secondary" id="testSheetWriteBtn">測試連線+寫入一筆測試資料</button>
+        </div>
+        <p class="hint" style="margin:6px 0 0;">「測試連線」只確認網址部署成功、有沒有連到試算表,不會寫入任何資料。
+        「測試連線+寫入一筆測試資料」會多做一步:實際寫一列可識別的測試資料(「測試01小明」)進你的試算表——
+        如果這個成功但平常按「開啟預填表單」還是沒有真的同步,問題就出在網頁這邊送出的方式,不是 Apps Script 本身,
+        比較好縮小範圍;寫入的測試列確認沒問題後可以自己刪掉。設定好網址後,按「開啟預填表單」時會自動一併同步,
+        不需要另外按其他按鈕。</p>
       </div>
     </details>
 
@@ -739,63 +743,60 @@ const DEFAULT_CLASS_TEACHER_OPTIONS = [
 // 在設定畫面瞄到網址就複製走。
 const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf1V9Wqv4BXLpA81kUJ4K8Mb8G8eni3qVbpFQ/formResponse';
 
-// 貼給老師去 Apps Script 編輯畫面貼上的程式碼。doPost 收到我們送過去的
-// 資料(用一般表單編碼送出,e.parameter.payload 就是我們塞的 JSON 字串),
+// 貼給老師去 Apps Script 編輯畫面貼上的程式碼。doPost 支援兩種收資料的
+// 方式:fetch() 送出時資料在 e.postData.contents(原始文字內容);舊式
+// 隱藏表單送出時資料在 e.parameter.payload。兩種都嘗試,增加相容性。
 // 寫成「每位學生一列、每一天一欄」的格式:第一欄是學生標籤,固定用來比對
 // 是不是同一位學生;第一列(表頭)是日期,固定用來比對是不是同一天。
 // 找不到就新增一欄或一列,找得到就更新對應格子,不會重複建立或覆蓋掉
-// 其他天的紀錄。跟送 Google 表單一樣,用隱藏表單送出,不用 fetch,
-// 完全避開瀏覽器 CORS 的問題——代價是前端沒辦法讀到真正的執行結果,
-// 所以另外加了 doGet,讓老師可以直接把網址貼到瀏覽器分頁打開來測試,
-// 不用依賴我們這邊讀不到的回應內容。doPost 也包一層 try/catch,失敗時
-// 把錯誤訊息寫進 Apps Script 的「執行項目」紀錄,方便對照原因。
+// 其他天的紀錄。doPost 包一層 try/catch,失敗時把錯誤訊息寫進 Apps
+// Script 的「執行項目」紀錄,方便對照原因,回應也會帶錯誤內容回去。
 const APPS_SCRIPT_CODE = `function doGet(e) {
-  return ContentService.createTextOutput(
-    '早晨點名同步服務運作中 ✓\\n\\n如果你在瀏覽器分頁看到這行字,代表這個網址部署成功、\\n可以貼到工具設定的「試算表同步網址」欄位使用。\\n\\n這個頁面本身不會寫入任何資料,只是測試連線用。'
-  );
+  var lines = ['早晨點名同步服務運作中 ✓', ''];
+
+  var ss;
+  try {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  } catch (err) {
+    lines.push('⚠️ 連接試算表時發生錯誤:' + err);
+    lines.push('這通常代表這個 Apps Script 專案沒有正確綁定到某一份試算表——請確認是從試算表的「擴充功能→Apps Script」開的,不是在 script.google.com 另外開一個獨立專案。');
+    return ContentService.createTextOutput(lines.join('\\n'));
+  }
+  if (!ss) {
+    lines.push('⚠️ 抓不到目前的試算表(getActiveSpreadsheet 回傳空值)。');
+    lines.push('這通常代表這個 Apps Script 專案不是從試算表裡面開的——請確認是從試算表的「擴充功能→Apps Script」開的,不是在 script.google.com 另外開一個獨立專案。');
+    return ContentService.createTextOutput(lines.join('\\n'));
+  }
+  lines.push('已成功連接到試算表:「' + ss.getName() + '」✓');
+
+  if (e.parameter.test === '1') {
+    try {
+      writeAttendanceToSheet(ss.getActiveSheet(), { date: '測試欄', students: [{ label: '測試01小明', status: '測試' }] });
+      lines.push('');
+      lines.push('已寫入一列測試資料 ✓ 請去試算表確認有沒有出現「測試01小明」這一列(欄位標題是「測試欄」)。確認沒問題後可以把這一整列刪掉。');
+    } catch (err) {
+      lines.push('');
+      lines.push('⚠️ 寫入測試資料時發生錯誤:' + err);
+    }
+  } else {
+    lines.push('');
+    lines.push('如果你在瀏覽器分頁看到這行字,代表這個網址部署成功,可以貼到工具設定的「試算表同步網址」欄位使用。');
+    lines.push('這個頁面本身預設不會寫入任何資料。想連同「實際寫入」也一起測,在網址最後面加上 ?test=1 再打開一次(會多寫一列可識別的測試資料,測完可以刪掉)。');
+  }
+
+  return ContentService.createTextOutput(lines.join('\\n'));
 }
 
 function doPost(e) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var data = JSON.parse(e.parameter.payload);
-    var dateLabel = data.date;
-    var students = data.students || [];
-
-    var lastCol = sheet.getLastColumn();
-    if (lastCol === 0) {
-      sheet.getRange(1, 1).setValue('班級座號姓名');
-      lastCol = 1;
+    var raw = (e.postData && e.postData.contents) ? e.postData.contents
+      : ((e.parameter && e.parameter.payload) ? e.parameter.payload : null);
+    if (!raw) {
+      throw new Error('沒有收到任何資料內容(e.postData 和 e.parameter.payload 都是空的)');
     }
-
-    var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    var dateCol = -1;
-    for (var i = 1; i < headerValues.length; i++) {
-      if (String(headerValues[i]) === dateLabel) { dateCol = i + 1; break; }
-    }
-    if (dateCol === -1) {
-      dateCol = lastCol + 1;
-      sheet.getRange(1, dateCol).setValue(dateLabel);
-    }
-
-    var lastRow = sheet.getLastRow();
-    var existingLabels = lastRow > 1
-      ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(function(r){ return r[0]; })
-      : [];
-
-    students.forEach(function(s) {
-      var rowIdx = existingLabels.indexOf(s.label);
-      var row;
-      if (rowIdx === -1) {
-        row = existingLabels.length + 2;
-        sheet.getRange(row, 1).setValue(s.label);
-        existingLabels.push(s.label);
-      } else {
-        row = rowIdx + 2;
-      }
-      sheet.getRange(row, dateCol).setValue(s.status === '出席' ? '' : s.status);
-    });
-
+    var data = JSON.parse(raw);
+    writeAttendanceToSheet(sheet, data);
     return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -803,6 +804,45 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({status:'error', message: String(err)}))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function writeAttendanceToSheet(sheet, data) {
+  var dateLabel = data.date;
+  var students = data.students || [];
+
+  var lastCol = sheet.getLastColumn();
+  if (lastCol === 0) {
+    sheet.getRange(1, 1).setValue('班級座號姓名');
+    lastCol = 1;
+  }
+
+  var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var dateCol = -1;
+  for (var i = 1; i < headerValues.length; i++) {
+    if (String(headerValues[i]) === dateLabel) { dateCol = i + 1; break; }
+  }
+  if (dateCol === -1) {
+    dateCol = lastCol + 1;
+    sheet.getRange(1, dateCol).setValue(dateLabel);
+  }
+
+  var lastRow = sheet.getLastRow();
+  var existingLabels = lastRow > 1
+    ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(function(r){ return r[0]; })
+    : [];
+
+  students.forEach(function(s) {
+    var rowIdx = existingLabels.indexOf(s.label);
+    var row;
+    if (rowIdx === -1) {
+      row = existingLabels.length + 2;
+      sheet.getRange(row, 1).setValue(s.label);
+      existingLabels.push(s.label);
+    } else {
+      row = rowIdx + 2;
+    }
+    sheet.getRange(row, dateCol).setValue(s.status === '出席' ? '' : s.status);
+  });
 }`;
 
 const DEFAULT_CONFIG = {
@@ -1854,9 +1894,14 @@ function buildSubmissionValues(){
 // string, so you can visually confirm the entry codes match the right questions
 // before trusting the blind auto-submit.
 // 同步目前名單狀態到 Google 試算表,格式是「每位學生一列、每一天一欄」。
-// 跟送 Google 表單一樣用「隱藏表單 + iframe」技巧送出,避開瀏覽器 CORS
-// 限制;因為是導頁式送出,前端沒辦法讀到 Apps Script 真正回傳的內容,
-// 所以沒辦法 100% 確認試算表那邊真的寫入成功,建議偶爾自己回去看一眼確認。
+// 原本用「隱藏表單 + iframe」送出(跟送 Google 表單一樣的技巧),但這個
+// 方式有個很隱晦的地雷:Apps Script 網頁應用程式的網址本身會先回一個
+// HTTP 轉址,瀏覽器在「跟著轉址走」的時候,一般表單的 POST 會被自動降級
+// 成 GET,附帶的資料整包直接不見——doGet 因為本來就不需要帶資料,測試
+// 起來永遠正常,但真正送資料的 doPost 卻悄悄收不到東西,而且我們這邊
+// 因為是導頁送出,前端也讀不到任何錯誤,完全看不出問題出在哪。改用
+// fetch() 送出後,瀏覽器會在背景正確處理轉址、保留 POST 內容,而且
+// 我們終於能讀到 Apps Script 真正回傳的結果,不用再靠猜的。
 function buildSheetSyncPayload(){
   const students = allStudentsSorted().map(s=>{
     const st = currentStatus[statusKey(s.class, s.no)] || '出席';
@@ -1866,25 +1911,30 @@ function buildSheetSyncPayload(){
   const dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
   return { date: dateLabel, students };
 }
-function syncToSheet(){
+async function syncToSheet(){
   const url = (config.sheetWebhookUrl || '').trim();
-  if(!url) return;
+  if(!url) return { ok:false, reason:'not-configured' };
   const payload = buildSheetSyncPayload();
-  const form = document.createElement('form');
-  form.action = url;
-  form.method = 'POST';
-  form.target = 'hiddenSubmitFrame';
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'payload';
-  input.value = JSON.stringify(payload);
-  form.appendChild(input);
-  document.body.appendChild(form);
-  form.submit();
-  document.body.removeChild(form);
+  try{
+    const resp = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload), // 不特別設 headers,預設用 text/plain,避免觸發 CORS 預檢請求
+    });
+    try{
+      const json = await resp.json();
+      return { ok: json && json.status === 'ok', raw: json };
+    }catch(parseErr){
+      // Apps Script 有回應,但讀不出 JSON(可能是權限問題導致回傳的是
+      // Google 的錯誤頁面而不是我們程式碼的輸出)。用 HTTP 狀態碼判斷。
+      return { ok: resp.ok, raw: null };
+    }
+  }catch(networkErr){
+    // fetch 本身失敗(網路問題,或伺服器完全沒有正確回應 CORS 標頭)。
+    return { ok:false, reason:'network', error: networkErr };
+  }
 }
 
-$('previewBtn').addEventListener('click', ()=>{
+$('previewBtn').addEventListener('click', async ()=>{
   const statusEl = $('submitStatus');
   if(!config.url){
     statusEl.textContent = '請先點右上角 ⚙ 設定表單網址與欄位代碼';
@@ -1901,13 +1951,31 @@ $('previewBtn').addEventListener('click', ()=>{
   });
   window.open(viewUrl + '?' + params.toString(), '_blank');
 
-  let msg = '已開啟表單分頁,答案已預填,請確認後按「繼續」→「提交」';
-  if((config.sheetWebhookUrl || '').trim()){
-    syncToSheet();
-    msg += ';已同時同步到 Google 試算表';
+  const baseMsg = '已開啟表單分頁,答案已預填,請確認後按「繼續」→「提交」';
+  const hasWebhook = (config.sheetWebhookUrl || '').trim();
+  if(!hasWebhook){
+    // 之前這裡完全不提試算表的事,同步到底有沒有被觸發,只能用猜的。
+    // 明確講出來:如果你設定過網址卻看到這行,代表網址其實沒有真的存進
+    // 設定裡(常見原因是測試連線後忘記按「儲存設定」,或用「點外面取消」
+    // 的方式關掉了設定視窗)。
+    statusEl.textContent = baseMsg + ';(未設定試算表同步網址,略過同步)';
+    statusEl.className = 'submit-status';
+    return;
   }
-  statusEl.textContent = msg;
+
+  statusEl.textContent = baseMsg + ';試算表同步中...';
   statusEl.className = 'submit-status';
+  const result = await syncToSheet();
+  if(result.ok){
+    statusEl.textContent = baseMsg + ';已同步到 Google 試算表 ✓';
+    statusEl.className = 'submit-status ok';
+  } else if(result.reason === 'network'){
+    statusEl.textContent = baseMsg + ';試算表同步失敗(網路連不上,或 Apps Script 網址設定有問題,請到設定裡按「測試連線」確認)';
+    statusEl.className = 'submit-status err';
+  } else {
+    statusEl.textContent = baseMsg + ';試算表同步失敗(Apps Script 有回應但顯示錯誤,建議到 Apps Script 編輯畫面的「執行項目」查看詳細原因)';
+    statusEl.className = 'submit-status err';
+  }
 });
 
 $('copyAppsScriptBtn').addEventListener('click', async ()=>{
@@ -1957,79 +2025,14 @@ $('testSheetWebhookBtn').addEventListener('click', ()=>{
   window.open(url, '_blank');
 });
 
-async function init(){
-  $('dateInput').value = new Date().toISOString().slice(0,10);
-  await loadRoster();
-  await loadConfig();
-
-  showSummaryLists = lsGet('show-summary-lists') === '1';
-  $('summaryListToggle').checked = showSummaryLists;
-
-  $('cfgUrl').value = config.url || '';
-  $('cfgGradeEntry').value = config.gradeEntry || '';
-  $('cfgInfectionValue').value = config.infectionValue || '';
-  branchDraft = JSON.parse(JSON.stringify(config.branches));
-  currentBranchDigit = branchDigitFor(config.classTeacherValue) || '1';
-  $('cfgBranchSelect').value = currentBranchDigit;
-  loadBranchIntoFields(currentBranchDigit);
-  populateClassTeacherSelect();
-  setClassTeacherValue(config.classTeacherValue || '');
-  refreshClassTeacherListTextarea();
-  $('cfgExtra').value = config.extraFields || '';
-  $('cfgSheetWebhook').value = config.sheetWebhookUrl || '';
-  $('cfgLineBasic').value = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
-  $('appsScriptCode').value = APPS_SCRIPT_CODE;
-
-  computeClasses();
-  renderRosterSummary();
-  await loadAttendance();
-  renderAttendance();
-}
-
-$('summaryListToggle').addEventListener('change', (e)=>{
-  showSummaryLists = e.target.checked;
-  lsSet('show-summary-lists', showSummaryLists ? '1' : '0');
-  renderSummary();
-});
-
-init();
-
-// The Easter-egg image is position:fixed with height:0 by default (see
-// #easterEgg CSS), so it's never part of normal document flow and takes up
-// no space until revealed. iOS Safari reports negative window.scrollY while
-// the user holds an elastic overscroll bounce at the very top of the page —
-// we grow the image's height to match that pull distance exactly (rather
-// than capping it and sliding a fixed-size image into view), so the coffee
-// backdrop always fills the whole gap the bounce opens up above the header,
-// with no leftover blank strip no matter how hard the user pulls.
-//
-// A plain 'scroll' event listener leaves a visible sliver of gap right at
-// the egg/header seam during fast motion, because iOS can batch/throttle
-// scroll events so our height update lags a frame or two behind the actual
-// native rubber-band position. Polling scrollY every animation frame
-// instead keeps the two in much tighter sync.
-(function setupEasterEgg(){
-  const egg = document.getElementById('easterEgg');
-  if(!egg) return;
-  const MAX_HEIGHT = 500; // generous cap just to avoid absurd image stretching on a very long pull
-  let lastPull = -1;
-  function tick(){
-    const y = window.scrollY || window.pageYOffset || 0;
-    const pull = y < 0 ? Math.min(-y, MAX_HEIGHT) : 0;
-    if(pull !== lastPull){
-      // Sets --egg-pull only; the CSS height:calc(var(--egg-pull) + var(--safe-top))
-      // rule adds the status-bar height on top of this so the image's bottom
-      // edge always lines up exactly with wherever the header has been
-      // dragged to, with no seam regardless of device notch/Dynamic Island size.
-      egg.style.setProperty('--egg-pull', pull + 'px');
-      lastPull = pull;
-    }
-    requestAnimationFrame(tick);
+// 加 ?test=1 觸發 doGet 裡實際寫入測試資料那段邏輯,直接驗證「Apps Script
+// 寫入試算表」這件事本身有沒有問題,跳過我們自己送出資料的方式,方便
+// 縮小範圍——如果這個測試會寫入成功,但平常同步沒有寫入,問題就出在
+// 網頁送出資料的方式,而不是 Apps Script 或試算表權限本身。
+$('testSheetWriteBtn').addEventListener('click', ()=>{
+  const url = $('cfgSheetWebhook').value.trim();
+  if(!url){
+    alert('請先貼上「試算表同步網址」再測試。');
+    return;
   }
-  requestAnimationFrame(tick);
-})();
-
-</script>
-
-</body>
-</html>
+  const sep = url.includes('?') ? '&' : 
