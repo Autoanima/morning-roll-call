@@ -513,8 +513,10 @@
 
         <p style="margin:14px 0 6px;font-weight:800;color:var(--brown);">設定步驟(第一次設定大約 5 分鐘,跟著做就好):</p>
         <ol style="margin:0 0 12px;padding-left:22px;font-size:13.5px;line-height:1.8;">
-          <li>用「私人 Google 帳號」登入,到 <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> 開一份新的空白試算表,當作點名紀錄本。</li>
-          <li>上方選單點「擴充功能」→「Apps Script」,會開啟一個程式碼編輯畫面。</li>
+          <li>用「私人 Google 帳號」登入,到 <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> 開一份新的空白試算表,當作點名紀錄本。
+          <strong>一定要從這份試算表裡面開 Apps Script</strong>(下一步),不要另外跑去 script.google.com 開一個獨立專案——
+          獨立專案抓不到「目前是哪一份試算表」,程式會直接執行失敗。</li>
+          <li>在剛剛那份試算表裡,上方選單點「擴充功能」→「Apps Script」,會開啟一個程式碼編輯畫面。</li>
           <li>把畫面裡原本的內容全部刪掉,改貼上下面這一段程式碼(可以按「複製程式碼」按鈕)。</li>
           <li>按上面工具列的「儲存」(磁片圖示),隨便取個名字。</li>
           <li>按「部署」→「新增部署作業」。</li>
@@ -524,8 +526,17 @@
           如果看到「Google 尚未驗證這個應用程式」的警告,點「進階」→「前往(專案名稱)(不安全)」→「允許」。
           這個警告是因為程式是你自己貼的、還沒有申請 Google 官方認證,不是真的有問題,自己貼的程式可以放心允許。</li>
           <li>完成後會顯示一個「網頁應用程式」網址,把它複製起來。</li>
-          <li>貼到下面「試算表同步網址」欄位,按最下面的「儲存設定」。設定好以後,以後每次按「開啟預填表單」就會自動同步,不用再手動觸發。</li>
+          <li>貼到下面「試算表同步網址」欄位,按「測試連線」——如果看到一段確認文字,代表部署成功;
+          如果看到錯誤畫面,回到第 5~7 步檢查部署設定(尤其是「具有存取權的使用者」是不是選「所有人」)。</li>
+          <li>測試沒問題後,按最下面的「儲存設定」。設定好以後,以後每次按「開啟預填表單」就會自動同步,不用再手動觸發。</li>
         </ol>
+
+        <p style="margin:0 0 12px;padding:10px 12px;background:#FFF6E0;border:1.5px solid var(--sun-yellow);border-radius:8px;color:var(--brown);font-size:13px;line-height:1.6;">
+          💡 因為送出同步的方式(跟送 Google 表單一樣的隱藏表單技巧)沒辦法讓網頁讀到執行結果,
+          「開啟預填表單」按了以後永遠只會顯示「已同步」,不代表一定成功。真的懷疑同步沒生效時,
+          最準確的檢查方式是回到 Apps Script 編輯畫面,左側選單點「執行項目」,看最近一次執行是成功
+          還是有錯誤訊息——錯誤原因都會完整記錄在那裡。
+        </p>
 
         <p style="margin:14px 0 6px;font-weight:800;color:var(--brown);">程式碼(複製貼到 Apps Script 編輯畫面):</p>
         <textarea id="appsScriptCode" rows="12" readonly style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:12px;font-family:monospace;"></textarea>
@@ -536,7 +547,10 @@
           <label>試算表同步網址</label>
           <input type="text" id="cfgSheetWebhook" placeholder="貼上你部署好的網頁應用程式網址,留空則不會同步">
         </div>
-        <p class="hint" style="margin:6px 0 0;">設定好這個網址後,按「開啟預填表單」時會自動一併同步,不需要另外按其他按鈕。</p>
+        <button type="button" class="btn-secondary" id="testSheetWebhookBtn" style="margin-top:6px;">測試連線</button>
+        <p class="hint" style="margin:6px 0 0;">按下去會在新分頁開啟這個網址。看到「早晨點名同步服務運作中」代表部署成功;
+        看到 Google 的錯誤畫面,代表部署設定還有問題,請回頭檢查上面的步驟。設定好這個網址後,按「開啟預填表單」時
+        會自動一併同步,不需要另外按其他按鈕。</p>
       </div>
     </details>
 
@@ -731,49 +745,64 @@ const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf
 // 是不是同一位學生;第一列(表頭)是日期,固定用來比對是不是同一天。
 // 找不到就新增一欄或一列,找得到就更新對應格子,不會重複建立或覆蓋掉
 // 其他天的紀錄。跟送 Google 表單一樣,用隱藏表單送出,不用 fetch,
-// 完全避開瀏覽器 CORS 的問題。
-const APPS_SCRIPT_CODE = `function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = JSON.parse(e.parameter.payload);
-  var dateLabel = data.date;
-  var students = data.students || [];
+// 完全避開瀏覽器 CORS 的問題——代價是前端沒辦法讀到真正的執行結果,
+// 所以另外加了 doGet,讓老師可以直接把網址貼到瀏覽器分頁打開來測試,
+// 不用依賴我們這邊讀不到的回應內容。doPost 也包一層 try/catch,失敗時
+// 把錯誤訊息寫進 Apps Script 的「執行項目」紀錄,方便對照原因。
+const APPS_SCRIPT_CODE = `function doGet(e) {
+  return ContentService.createTextOutput(
+    '早晨點名同步服務運作中 ✓\n\n如果你在瀏覽器分頁看到這行字,代表這個網址部署成功、\n可以貼到工具設定的「試算表同步網址」欄位使用。\n\n這個頁面本身不會寫入任何資料,只是測試連線用。'
+  );
+}
 
-  var lastCol = sheet.getLastColumn();
-  if (lastCol === 0) {
-    sheet.getRange(1, 1).setValue('班級座號姓名');
-    lastCol = 1;
-  }
+function doPost(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = JSON.parse(e.parameter.payload);
+    var dateLabel = data.date;
+    var students = data.students || [];
 
-  var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var dateCol = -1;
-  for (var i = 1; i < headerValues.length; i++) {
-    if (String(headerValues[i]) === dateLabel) { dateCol = i + 1; break; }
-  }
-  if (dateCol === -1) {
-    dateCol = lastCol + 1;
-    sheet.getRange(1, dateCol).setValue(dateLabel);
-  }
-
-  var lastRow = sheet.getLastRow();
-  var existingLabels = lastRow > 1
-    ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(function(r){ return r[0]; })
-    : [];
-
-  students.forEach(function(s) {
-    var rowIdx = existingLabels.indexOf(s.label);
-    var row;
-    if (rowIdx === -1) {
-      row = existingLabels.length + 2;
-      sheet.getRange(row, 1).setValue(s.label);
-      existingLabels.push(s.label);
-    } else {
-      row = rowIdx + 2;
+    var lastCol = sheet.getLastColumn();
+    if (lastCol === 0) {
+      sheet.getRange(1, 1).setValue('班級座號姓名');
+      lastCol = 1;
     }
-    sheet.getRange(row, dateCol).setValue(s.status === '出席' ? '' : s.status);
-  });
 
-  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
-    .setMimeType(ContentService.MimeType.JSON);
+    var headerValues = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var dateCol = -1;
+    for (var i = 1; i < headerValues.length; i++) {
+      if (String(headerValues[i]) === dateLabel) { dateCol = i + 1; break; }
+    }
+    if (dateCol === -1) {
+      dateCol = lastCol + 1;
+      sheet.getRange(1, dateCol).setValue(dateLabel);
+    }
+
+    var lastRow = sheet.getLastRow();
+    var existingLabels = lastRow > 1
+      ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(function(r){ return r[0]; })
+      : [];
+
+    students.forEach(function(s) {
+      var rowIdx = existingLabels.indexOf(s.label);
+      var row;
+      if (rowIdx === -1) {
+        row = existingLabels.length + 2;
+        sheet.getRange(row, 1).setValue(s.label);
+        existingLabels.push(s.label);
+      } else {
+        row = rowIdx + 2;
+      }
+      sheet.getRange(row, dateCol).setValue(s.status === '出席' ? '' : s.status);
+    });
+
+    return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    Logger.log('doPost 失敗:' + err);
+    return ContentService.createTextOutput(JSON.stringify({status:'error', message: String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }`;
 
 const DEFAULT_CONFIG = {
@@ -1914,6 +1943,18 @@ $('copyAppsScriptBtn').addEventListener('click', async ()=>{
     statusEl.textContent = '無法自動複製,程式碼已幫你選取,請自己按 Ctrl/Cmd+C。';
     statusEl.className = 'submit-status err';
   }
+});
+
+// 測試 Apps Script 網頁應用程式是不是真的部署成功。直接用瀏覽器開新分頁
+// GET 那個網址(對應程式碼裡的 doGet),不透過我們自己的隱藏表單機制——
+// 這樣才能讓老師用肉眼直接看到 Google 那邊真正回傳了什麼,不用猜。
+$('testSheetWebhookBtn').addEventListener('click', ()=>{
+  const url = $('cfgSheetWebhook').value.trim();
+  if(!url){
+    alert('請先貼上「試算表同步網址」再測試。');
+    return;
+  }
+  window.open(url, '_blank');
 });
 
 async function init(){
