@@ -167,23 +167,6 @@
   .btn-primary:hover{transform:translate(-1px,-1px);}
   .btn-secondary{background:#fff;color:var(--brown);border:2.5px solid var(--brown);box-shadow:var(--shadow-sm);}
   .btn-secondary:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
-  /* 頁面最下方的小小推薦連結,故意用比較低調的樣式(虛線分隔、小字、白底按鈕),
-     不要跟上面點名用的按鈕搶視覺。 */
-  .ad-footer{
-    margin-top:30px;padding-top:16px;border-top:1.5px dashed var(--line-soft);
-    display:flex;justify-content:flex-end;
-  }
-  /* 用一個有寬度上限的內層區塊,靠右貼齊——這樣文字本身維持正常由左到右排版、
-     好讀好掃視,但整塊視覺上仍然偏向畫面右側;手機這種本來就窄的畫面下,
-     寬度上限自然會被螢幕寬度蓋過,等於整行寬度都用上,不會被硬擠成一堆短行。 */
-  .ad-footer-inner{max-width:440px;width:100%;text-align:right;}
-  .ad-footer-inner p{margin:0 0 12px;font-size:15px;line-height:1.8;color:var(--ink-soft);text-align:justify;text-justify:inter-character;}
-  .ad-btn{
-    display:inline-block;font-family:inherit;font-weight:800;font-size:13px;
-    padding:8px 16px;border-radius:10px;border:2px solid var(--brown);color:var(--brown);
-    background:#fff;text-decoration:none;box-shadow:var(--shadow-sm);transition:transform 0.08s ease;
-  }
-  .ad-btn:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
   .roster-summary{
     display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;
   }
@@ -453,13 +436,6 @@
     <div class="submit-row">
       <button class="btn-primary" id="previewBtn">開啟預填表單</button>
       <span class="submit-status" id="submitStatus"></span>
-    </div>
-  </div>
-
-  <div class="ad-footer">
-    <div class="ad-footer-inner">
-      <p>💡 工商推薦：Typeless，AI 語音輸入工具，每週免費 2000 字額度，這個點名工具的開發，全靠一張嘴嘰哩呱啦來代替繁瑣的打字、它還能幫忙去除語言贅字、整理邏輯和脈絡，並用條列式整理，輕鬆、超級無敵多，大家可以試用看看！用此旁邊按鈕連結安裝，開發者也能收到 $5 使用額度回饋，謝謝支持 🥹</p>
-      <a class="ad-btn" href="https://www.typeless.com/refer?code=YEIOLF9" target="_blank" rel="noopener">前往安裝</a>
     </div>
   </div>
 
