@@ -167,6 +167,21 @@
   .btn-primary:hover{transform:translate(-1px,-1px);}
   .btn-secondary{background:#fff;color:var(--brown);border:2.5px solid var(--brown);box-shadow:var(--shadow-sm);}
   .btn-secondary:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
+  /* 頁面最下方的小小推薦連結,故意用比較低調的樣式(虛線分隔、小字、白底按鈕),
+     不要跟上面點名用的按鈕搶視覺。預設是隱藏的(display:none),要遠端開關
+     問到「開啟」才會顯示出來,避免還沒設定好就被任何人意外先看到。 */
+  .ad-footer{
+    margin-top:30px;padding-top:16px;border-top:1.5px dashed var(--line-soft);
+    display:flex;justify-content:flex-end;
+  }
+  .ad-footer-inner{max-width:440px;width:100%;text-align:right;}
+  .ad-footer-inner p{margin:0 0 12px;font-size:15px;line-height:1.8;color:var(--ink-soft);text-align:justify;text-justify:inter-character;}
+  .ad-btn{
+    display:inline-block;font-family:inherit;font-weight:800;font-size:13px;
+    padding:8px 16px;border-radius:10px;border:2px solid var(--brown);color:var(--brown);
+    background:#fff;text-decoration:none;box-shadow:var(--shadow-sm);transition:transform 0.08s ease;
+  }
+  .ad-btn:hover{background:var(--tan-pale);transform:translate(-1px,-1px);}
   .roster-summary{
     display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;
   }
@@ -439,6 +454,13 @@
     </div>
   </div>
 
+  <div class="ad-footer" id="adFooter" style="display:none;">
+    <div class="ad-footer-inner">
+      <p>💡 工商推薦：Typeless，AI 語音輸入工具，每週免費 2000 字額度，這個點名工具的開發，全靠一張嘴嘰哩呱啦來代替繁瑣的打字、它還能幫忙去除語言贅字、整理邏輯和脈絡，並用條列式整理，輕鬆、超級無敵多，大家可以試用看看！用此旁邊按鈕連結安裝，開發者也能收到 $5 使用額度回饋，謝謝支持 🥹</p>
+      <a class="ad-btn" href="https://www.typeless.com/refer?code=YEIOLF9" target="_blank" rel="noopener">前往安裝</a>
+    </div>
+  </div>
+
 </main>
 
 <div class="modal-overlay" id="settingsOverlay">
@@ -565,6 +587,36 @@
         如果這個成功但平常按「開啟預填表單」還是沒有真的同步,問題就出在網頁這邊送出的方式,不是 Apps Script 本身,
         比較好縮小範圍;寫入的測試列確認沒問題後可以自己刪掉。設定好網址後,按「開啟預填表單」時會自動一併同步,
         不需要另外按其他按鈕。</p>
+      </div>
+    </details>
+
+    <details class="note">
+      <summary>進階:遠端廣告開關(只有你自己要用,點此展開)</summary>
+      <div class="note-body">
+        <p style="margin:0 0 10px;">頁面最下方有一則低調的推薦廣告,平常是隱藏的。這裡可以讓你「一個開關,
+        影響所有使用者」——包括已經把 App 加到手機主畫面的人,不需要任何人重新安裝或更新。運作方式:
+        App 每次打開時,會偷偷問一次上面那支「試算表同步」用的 Apps Script「現在廣告要開還是關」,
+        並把答案記在手機本機;離線或問不到的時候就沿用上次記住的狀態,從來沒問到過的情況
+        (例如你還沒設定完成之前)預設是關閉,不會有人意外先看到廣告。</p>
+
+        <p style="margin:0 0 12px;">要讓這個機制生效,必須先把上面「試算表同步」設定好(廣告開關跟同步共用
+        同一支 Apps Script,不用另外部署)。接著去 Apps Script 編輯畫面,把最上面「複製程式碼」那段更新過的
+        程式碼重新貼上(取代原本內容),把最上面的 <code>AD_TOGGLE_SECRET</code> 改成你自己想的一串英數字密語,
+        再照原本流程「管理部署作業→編輯→新版本→部署」重新部署一次(網址通常不會變)。</p>
+
+        <div class="field-row">
+          <label>廣告控制密語</label>
+          <input type="text" id="cfgAdSecret" placeholder="要跟 Apps Script 裡的 AD_TOGGLE_SECRET 完全一樣">
+        </div>
+        <p class="hint" style="margin:6px 0 12px;">這組密語只會存在你自己這台裝置的瀏覽器裡,不會被放進分享
+        給其他老師的檔案裡。</p>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" id="adTurnOnBtn">開啟廣告(所有使用者)</button>
+          <button type="button" class="btn-secondary" id="adTurnOffBtn">關閉廣告(所有使用者)</button>
+          <button type="button" class="btn-secondary" id="adRefreshStatusBtn">重新檢查這台裝置目前狀態</button>
+        </div>
+        <p class="hint" id="adStatusHint" style="margin:8px 0 0;"></p>
       </div>
     </details>
 
@@ -943,7 +995,18 @@ const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf
 // 找不到就新增一欄或一列,找得到就更新對應格子,不會重複建立或覆蓋掉
 // 其他天的紀錄。doPost 包一層 try/catch,失敗時把錯誤訊息寫進 Apps
 // Script 的「執行項目」紀錄,方便對照原因,回應也會帶錯誤內容回去。
-const APPS_SCRIPT_CODE = `function doGet(e) {
+const APPS_SCRIPT_CODE = `// 廣告開關要用的密語,自己改成一串你自己知道的英數字(不要用簡單好猜的字,
+// 例如生日、班級號碼這種),改完要記得重新部署一次才會生效。
+var AD_TOGGLE_SECRET = 'change-me-12345';
+
+function doGet(e) {
+  if (e.parameter.action === 'getAdConfig') {
+    return handleGetAdConfig(e);
+  }
+  if (e.parameter.action === 'setAdConfig') {
+    return handleSetAdConfig(e);
+  }
+
   var lines = ['早晨點名同步服務運作中 ✓', ''];
 
   var ss;
@@ -977,6 +1040,36 @@ const APPS_SCRIPT_CODE = `function doGet(e) {
   }
 
   return ContentService.createTextOutput(lines.join('\\n'));
+}
+
+// 廣告開關的狀態存在 Apps Script 自己的「指令碼屬性」裡(PropertiesService),
+// 不佔用試算表的任何欄位,也不需要另外的儲存空間。用 JSONP(帶 callback
+// 參數就回傳一段可以直接執行的 JS,不然就回傳一般 JSON)是因為瀏覽器對
+// <script src> 這種載入方式沒有跨網域限制,不會遇到 fetch() 讀不到回應內容
+// 的問題,確保 App 每次都能穩定問到目前的開關狀態。
+function handleGetAdConfig(e) {
+  var props = PropertiesService.getScriptProperties();
+  var on = props.getProperty('AD_ON') === '1';
+  var payload = JSON.stringify({ on: on });
+  var callback = e.parameter.callback;
+  if (callback && /^[A-Za-z0-9_]+$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + payload + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
+}
+
+// 用瀏覽器直接打開網址(帶正確的密語)來切換,回傳一段給人看的確認文字,
+// 不是給程式讀的格式——所以密語核對失敗時也只會顯示文字,不會真的改到
+// 任何設定。
+function handleSetAdConfig(e) {
+  if (e.parameter.secret !== AD_TOGGLE_SECRET) {
+    return ContentService.createTextOutput('密語不對,沒有變更任何設定。');
+  }
+  var props = PropertiesService.getScriptProperties();
+  var on = e.parameter.on === '1';
+  props.setProperty('AD_ON', on ? '1' : '0');
+  return ContentService.createTextOutput('已設定完成:廣告目前是「' + (on ? '開啟' : '關閉') + '」。這台裝置可以關掉這個分頁了,其他人下次打開 App 時會自動問到這個新狀態。');
 }
 
 function doPost(e) {
@@ -1047,6 +1140,7 @@ const DEFAULT_CONFIG = {
   extraFields: '',
   sheetWebhookUrl: '',
   lineBasicMessage: '家長早,',
+  adToggleSecret: '',
 };
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
@@ -1089,6 +1183,72 @@ async function loadConfig(){
 async function saveConfig(){
   lsSet('form-config', JSON.stringify(config));
 }
+
+// 用 <script src> 載入資料(JSONP),不是 fetch()——這是刻意的選擇。瀏覽器對
+// <script> 標籤載入外部網址完全沒有跨網域限制(這也是為什麼上面 SheetJS 那個
+// CDN 的 <script> 標籤可以正常載入),所以不會遇到之前 Google 試算表同步那邊
+// 「fetch() 送出去、但讀不到回應內容」的問題,能穩定問到 Apps Script 回傳的
+// 廣告開關狀態。逾時或連不上時 resolve(null),呼叫端會自己 fallback 用上次
+// 記住的狀態,不會讓整個頁面卡住。
+function jsonpRequest(url, timeoutMs){
+  return new Promise((resolve)=>{
+    const cbName = '__adCfgCb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+    const script = document.createElement('script');
+    let done = false;
+    let timer;
+    const cleanup = ()=>{
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+    };
+    timer = setTimeout(()=>{
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve(null);
+    }, timeoutMs || 5000);
+    window[cbName] = (data)=>{
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = ()=>{
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve(null);
+    };
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'action=getAdConfig&callback=' + cbName;
+    document.head.appendChild(script);
+  });
+}
+
+const AD_CONFIG_CACHE_KEY = 'ad-config-on';
+function applyAdVisibility(on){
+  const el = $('adFooter');
+  if(el) el.style.display = on ? '' : 'none';
+}
+
+// 廣告開關的邏輯:先用本機記住的上一次狀態顯示(離線、問不到的時候就沿用
+// 這個),從來沒問到過的情況(localStorage 完全沒存過)預設是關閉,不會有人
+// 在還沒設定好之前意外先看到廣告。有設定「試算表同步網址」的話,才會另外
+// 偷偷問一次 Apps Script 現在的最新狀態,問到就覆蓋、更新本機記住的狀態。
+async function refreshAdConfig(){
+  const cached = lsGet(AD_CONFIG_CACHE_KEY);
+  applyAdVisibility(cached === '1');
+
+  const url = (config.sheetWebhookUrl || '').trim();
+  if(!url) return;
+
+  const data = await jsonpRequest(url, 5000);
+  if(data && typeof data.on === 'boolean'){
+    lsSet(AD_CONFIG_CACHE_KEY, data.on ? '1' : '0');
+    applyAdVisibility(data.on);
+  }
+}
+
 function attendanceKey(){
   return `attendance:${$('dateInput').value}`;
 }
@@ -1879,6 +2039,7 @@ $('resetSettingsBtn').addEventListener('click', async ()=>{
   $('cfgExtra').value = config.extraFields;
   $('cfgSheetWebhook').value = config.sheetWebhookUrl;
   $('cfgLineBasic').value = config.lineBasicMessage;
+  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('cfgBulkPaste').value = buildBulkPasteText();
   alert('已還原成預設值並儲存。');
 });
@@ -1969,9 +2130,46 @@ $('saveSettingsBtn').addEventListener('click', async ()=>{
     extraFields: $('cfgExtra').value,
     sheetWebhookUrl: $('cfgSheetWebhook').value.trim(),
     lineBasicMessage: $('cfgLineBasic').value,
+    adToggleSecret: $('cfgAdSecret').value.trim(),
   };
   await saveConfig();
   $('settingsOverlay').classList.remove('open');
+});
+
+// 廣告開關的密語存起來,跟「試算表同步」共用同一支 Apps Script,不用開新的
+// 部署。開/關都是用 window.open() 直接打開帶密語的網址讓瀏覽器顯示確認文字,
+// 不用 fetch()——這樣不管 Apps Script 那邊的 CORS 設定如何都不會受影響,
+// 跟「測試連線」按鈕是同一個做法。
+function adToggleUrl(on){
+  const url = $('cfgSheetWebhook').value.trim();
+  const secret = $('cfgAdSecret').value.trim();
+  const sep = url.includes('?') ? '&' : '?';
+  return url + sep + 'action=setAdConfig&secret=' + encodeURIComponent(secret) + '&on=' + (on ? '1' : '0');
+}
+function checkAdToggleReady(){
+  if(!$('cfgSheetWebhook').value.trim()){
+    alert('請先在上面設定好「試算表同步網址」,廣告開關是共用同一支 Apps Script。');
+    return false;
+  }
+  if(!$('cfgAdSecret').value.trim()){
+    alert('請先輸入廣告控制密語(要跟 Apps Script 裡的 AD_TOGGLE_SECRET 一樣)。');
+    return false;
+  }
+  return true;
+}
+$('adTurnOnBtn').addEventListener('click', ()=>{
+  if(!checkAdToggleReady()) return;
+  window.open(adToggleUrl(true), '_blank');
+});
+$('adTurnOffBtn').addEventListener('click', ()=>{
+  if(!checkAdToggleReady()) return;
+  window.open(adToggleUrl(false), '_blank');
+});
+$('adRefreshStatusBtn').addEventListener('click', async ()=>{
+  $('adStatusHint').textContent = '檢查中…';
+  await refreshAdConfig();
+  const on = lsGet(AD_CONFIG_CACHE_KEY) === '1';
+  $('adStatusHint').textContent = `這台裝置剛剛問到的狀態:廣告「${on ? '開啟' : '關閉'}」(只反映這台裝置這次問到的結果,其他人下次打開 App 也會問到同一個答案)。`;
 });
 
 // Group students by status, then by class, into { status: { className: [no,...] } }
@@ -2204,6 +2402,7 @@ async function init(){
   await loadConfig();
   loadSchoolRosterData();
   populateSchoolRosterSelect();
+  refreshAdConfig(); // 不 await——問廣告開關狀態不該卡住其他畫面的載入
 
   showSummaryLists = lsGet('show-summary-lists') === '1';
   $('summaryListToggle').checked = showSummaryLists;
@@ -2221,6 +2420,7 @@ async function init(){
   $('cfgExtra').value = config.extraFields || '';
   $('cfgSheetWebhook').value = config.sheetWebhookUrl || '';
   $('cfgLineBasic').value = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
+  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('appsScriptCode').value = APPS_SCRIPT_CODE;
 
   computeClasses();
