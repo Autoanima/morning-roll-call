@@ -674,23 +674,6 @@
       </div>
     </details>
 
-    <p id="adminPanelTrigger" style="text-align:center;color:#ccc;font-size:11px;margin:24px 0 0;cursor:default;user-select:none;">早自習點名簿</p>
-
-    <details class="note" id="adToggleSection" style="display:none;">
-      <summary>進階:遠端廣告開關(只有開發作者用得到)</summary>
-      <div class="note-body">
-        <p style="margin:0 0 8px;">這個區塊只有「這個 App 的開發作者」自己看得到、用得到,跟平常點名、同步試算表完全無關,一般老師不用理會這裡的任何內容。用來遠端開關首頁最下方那則推薦廣告,對所有老師的裝置一次生效,不需要大家重新安裝或更新網頁。</p>
-        <p style="margin:0 0 8px;">需要上面「進階:同步紀錄到Google試算表」那邊已經部署好 Apps Script 網頁應用程式(用同一個網址),並且把程式碼裡 <code>AD_TOGGLE_SECRET</code> 那一行改成自己知道的密語。</p>
-        <div class="field-row"><label>廣告控制密語</label><input type="text" id="cfgAdSecret" placeholder="跟 Apps Script 程式碼裡 AD_TOGGLE_SECRET 一樣的密語"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-          <button type="button" class="btn-secondary" id="adTurnOnBtn">開啟廣告</button>
-          <button type="button" class="btn-secondary" id="adTurnOffBtn">關閉廣告</button>
-          <button type="button" class="btn-secondary" id="adRefreshStatusBtn">重新檢查目前狀態</button>
-        </div>
-        <p class="hint" id="adStatusHint" style="margin:8px 0 0;">尚未查詢。</p>
-      </div>
-    </details>
-
     <div class="modal-actions">
       <button class="btn-secondary" id="resetSettingsBtn">還原預設值</button>
       <button class="btn-secondary" id="closeSettingsBtn">取消</button>
@@ -974,6 +957,18 @@ const DEFAULT_CLASS_TEACHER_OPTIONS = [
 // 在設定畫面瞄到網址就複製走。
 const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf1V9Wqv4BXLpA81kUJ4K8Mb8G8eni3qVbpFQ/formResponse';
 
+// 開發作者自己專用的遠端廣告開關網址——寫死在程式碼裡,跟「進階:同步紀錄到
+// Google試算表」那個每位老師自己選填的欄位完全無關、互不影響。這樣設計是
+// 因為廣告開關要對「所有老師的裝置」一次生效,如果改成問每位老師自己填的
+// 試算表同步網址,大多數老師根本不會去設定那個欄位,遠端開關就形同虛設。
+// 寫死在這裡,才能讓每一份發出去的網頁,不管那位老師有沒有設定任何東西,
+// 都會自動問到開發作者自己部署的那一份廣告開關狀態。
+// 這裡直接沿用開發作者另一個 App(跨群/本土語點名)已經部署好、也已經在
+// 用的那一支「雲端硬碟讀取服務」Apps Script——開和關這則廣告完全統一由
+// 那一份部署負責,兩個 App 共用同一個開關狀態,不需要另外再部署一次,
+// 這裡也不再提供另一組獨立的開關設定畫面,一切都在那邊控制。
+const AD_CONFIG_URL = 'https://script.google.com/macros/s/AKfycbxNZpJtEQam_3LI2DQlIMm5bIE6YuLqpFiGu25cRZqRWU-CrUvI_6wJ_dxccAP6LUpisQ/exec';
+
 // 貼給老師去 Apps Script 編輯畫面貼上的程式碼。doPost 支援兩種收資料的
 // 方式:fetch() 送出時資料在 e.postData.contents(原始文字內容);舊式
 // 隱藏表單送出時資料在 e.parameter.payload。兩種都嘗試,增加相容性。
@@ -982,22 +977,7 @@ const SECRET_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdM8iy11HHNxXf
 // 找不到就新增一欄或一列,找得到就更新對應格子,不會重複建立或覆蓋掉
 // 其他天的紀錄。doPost 包一層 try/catch,失敗時把錯誤訊息寫進 Apps
 // Script 的「執行項目」紀錄,方便對照原因,回應也會帶錯誤內容回去。
-const APPS_SCRIPT_CODE = `// 以下這段是給「這個 App 的開發作者」用來遠端開關頁面最下方那則推薦廣告,
-// 跟「試算表同步」這個功能本身完全無關——如果你只是想同步自己班上的
-// 點名紀錄,不用管這一段,保持原樣、直接照上面步驟部署即可,不會影響任何
-// 同步功能,也不會有廣告跑出來。
-// 只有開發作者自己需要把下面這一行改成作者自己知道的一串英數字密語
-// (不要用生日、班級號碼這種容易猜到的),改完記得重新部署一次才會生效。
-var AD_TOGGLE_SECRET = '0928';
-
-function doGet(e) {
-  if (e.parameter.action === 'getAdConfig') {
-    return handleGetAdConfig(e);
-  }
-  if (e.parameter.action === 'setAdConfig') {
-    return handleSetAdConfig(e);
-  }
-
+const APPS_SCRIPT_CODE = `function doGet(e) {
   var lines = ['早晨點名同步服務運作中 ✓', ''];
 
   var ss;
@@ -1031,36 +1011,6 @@ function doGet(e) {
   }
 
   return ContentService.createTextOutput(lines.join('\\n'));
-}
-
-// 廣告開關的狀態存在 Apps Script 自己的「指令碼屬性」裡(PropertiesService),
-// 不佔用試算表的任何欄位,也不需要另外的儲存空間。用 JSONP(帶 callback
-// 參數就回傳一段可以直接執行的 JS,不然就回傳一般 JSON)是因為瀏覽器對
-// <script src> 這種載入方式沒有跨網域限制,不會遇到 fetch() 讀不到回應內容
-// 的問題,確保 App 每次都能穩定問到目前的開關狀態。
-function handleGetAdConfig(e) {
-  var props = PropertiesService.getScriptProperties();
-  var on = props.getProperty('AD_ON') === '1';
-  var payload = JSON.stringify({ on: on });
-  var callback = e.parameter.callback;
-  if (callback && /^[A-Za-z0-9_]+$/.test(callback)) {
-    return ContentService.createTextOutput(callback + '(' + payload + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-  return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
-}
-
-// 用瀏覽器直接打開網址(帶正確的密語)來切換,回傳一段給人看的確認文字,
-// 不是給程式讀的格式——所以密語核對失敗時也只會顯示文字,不會真的改到
-// 任何設定。
-function handleSetAdConfig(e) {
-  if (e.parameter.secret !== AD_TOGGLE_SECRET) {
-    return ContentService.createTextOutput('密語不對,沒有變更任何設定。');
-  }
-  var props = PropertiesService.getScriptProperties();
-  var on = e.parameter.on === '1';
-  props.setProperty('AD_ON', on ? '1' : '0');
-  return ContentService.createTextOutput('已設定完成:廣告目前是「' + (on ? '開啟' : '關閉') + '」。這台裝置可以關掉這個分頁了,其他人下次打開 App 時會自動問到這個新狀態。');
 }
 
 function doPost(e) {
@@ -1131,7 +1081,6 @@ const DEFAULT_CONFIG = {
   extraFields: '',
   sheetWebhookUrl: '',
   lineBasicMessage: '家長早,',
-  adToggleSecret: '',
 };
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
@@ -1224,19 +1173,23 @@ function applyAdVisibility(on){
 
 // 廣告開關的邏輯:先用本機記住的上一次狀態顯示(離線、問不到的時候就沿用
 // 這個),從來沒問到過的情況(localStorage 完全沒存過)預設是關閉,不會有人
-// 在還沒設定好之前意外先看到廣告。有設定「試算表同步網址」的話,才會另外
-// 偷偷問一次 Apps Script 現在的最新狀態,問到就覆蓋、更新本機記住的狀態。
+// 在還沒設定好之前意外先看到廣告。接著一定會另外偷偷問一次 AD_CONFIG_URL
+// (開發作者寫死在程式碼裡的網址,見上面定義處)現在的最新狀態,問到就覆蓋、
+// 更新本機記住的狀態——注意這裡用的是寫死的 AD_CONFIG_URL,不是每位老師
+// 自己在設定裡填的「試算表同步網址」,所以不管這位老師自己有沒有做任何
+// 設定,都能問到開發作者最新的開關狀態。回應格式是 {ok:true, adOn:true/false},
+// 跟開發作者另一個 App 用的是同一份 Apps Script、同一套格式。
 async function refreshAdConfig(){
   const cached = lsGet(AD_CONFIG_CACHE_KEY);
   applyAdVisibility(cached === '1');
 
-  const url = (config.sheetWebhookUrl || '').trim();
+  const url = AD_CONFIG_URL.trim();
   if(!url) return;
 
   const data = await jsonpRequest(url, 5000);
-  if(data && typeof data.on === 'boolean'){
-    lsSet(AD_CONFIG_CACHE_KEY, data.on ? '1' : '0');
-    applyAdVisibility(data.on);
+  if(data && data.ok && typeof data.adOn === 'boolean'){
+    lsSet(AD_CONFIG_CACHE_KEY, data.adOn ? '1' : '0');
+    applyAdVisibility(data.adOn);
   }
 }
 
@@ -2011,35 +1964,13 @@ $('settingsOverlay').addEventListener('click', (e)=>{
   });
 })();
 
-// 設定視窗最下方有一行不起眼的小字「早自習點名簿」,連續點 20 下會叫出
-// 「遠端廣告開關」區塊——這是只有開發作者自己會用到的功能,一般老師平常
-// 看不到、也不需要用到。1.2 秒內沒有繼續點,計數會重置,避免不小心連點
-// 好幾下就誤觸發。
-(function setupAdPanelTap(){
-  let tapCount = 0;
-  let tapTimer = null;
-  $('adminPanelTrigger').addEventListener('click', ()=>{
-    tapCount++;
-    clearTimeout(tapTimer);
-    tapTimer = setTimeout(()=>{ tapCount = 0; }, 1200);
-    if(tapCount >= 20){
-      tapCount = 0;
-      $('adToggleSection').style.display = '';
-      $('adToggleSection').open = true;
-      updateAdStatusHint();
-      showCenterToast('已開啟遠端廣告開關區塊');
-    }
-  });
-})();
-
 $('resetSettingsBtn').addEventListener('click', async ()=>{
   const ok = await showConfirm('確定要還原成預設的表單網址與 entry 代碼嗎?(班級與導師名單、試算表同步網址、LINE 訊息開頭不會被這個按鈕影響)');
   if(!ok) return;
   const keepOptions = config.classTeacherOptions;
   const keepWebhook = config.sheetWebhookUrl;
   const keepLineBasic = config.lineBasicMessage;
-  const keepAdSecret = config.adToggleSecret;
-  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions, sheetWebhookUrl: keepWebhook, lineBasicMessage: keepLineBasic, adToggleSecret: keepAdSecret });
+  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions, sheetWebhookUrl: keepWebhook, lineBasicMessage: keepLineBasic });
   await saveConfig();
   $('cfgUrl').value = config.url;
   $('cfgGradeEntry').value = config.gradeEntry;
@@ -2052,7 +1983,6 @@ $('resetSettingsBtn').addEventListener('click', async ()=>{
   $('cfgExtra').value = config.extraFields;
   $('cfgSheetWebhook').value = config.sheetWebhookUrl;
   $('cfgLineBasic').value = config.lineBasicMessage;
-  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('cfgBulkPaste').value = buildBulkPasteText();
   alert('已還原成預設值並儲存。');
 });
@@ -2143,7 +2073,6 @@ $('saveSettingsBtn').addEventListener('click', async ()=>{
     extraFields: $('cfgExtra').value,
     sheetWebhookUrl: $('cfgSheetWebhook').value.trim(),
     lineBasicMessage: $('cfgLineBasic').value,
-    adToggleSecret: $('cfgAdSecret').value.trim(),
   };
   await saveConfig();
   $('settingsOverlay').classList.remove('open');
@@ -2373,49 +2302,6 @@ $('testSheetWriteBtn').addEventListener('click', ()=>{
   window.open(url + sep + 'test=1', '_blank');
 });
 
-// 只有開發作者自己會摸到的三顆按鈕(在被「連續點 20 下」叫出來之前一直是
-// display:none)。用瀏覽器開新分頁直接 GET 那個網址(跟測試連線用同一招),
-// 而不是 fetch()——同樣是因為 Apps Script 回應內容用 fetch() 讀不穩定,
-// 開新分頁反而能讓開發作者自己肉眼看到 Google 那邊真正回傳的確認文字
-// (成功或密語錯誤都會直接顯示出來)。
-function checkAdToggleReady(){
-  const url = $('cfgSheetWebhook').value.trim();
-  if(!url){
-    alert('請先在上面貼上「試算表同步網址」(要先照著上面步驟部署好 Apps Script)。');
-    return null;
-  }
-  const secret = $('cfgAdSecret').value.trim();
-  if(!secret){
-    alert('請先輸入密語(要跟 Apps Script 程式碼裡 AD_TOGGLE_SECRET 那一行設的一樣)。');
-    return null;
-  }
-  return { url, secret };
-}
-function adToggleUrl(on){
-  const ready = checkAdToggleReady();
-  if(!ready) return null;
-  const sep = ready.url.includes('?') ? '&' : '?';
-  return ready.url + sep + 'action=setAdConfig&secret=' + encodeURIComponent(ready.secret) + '&on=' + (on ? '1' : '0');
-}
-function updateAdStatusHint(){
-  const cached = lsGet(AD_CONFIG_CACHE_KEY);
-  const text = cached === '1' ? '開啟' : (cached === '0' ? '關閉' : '尚未取得過(預設視為關閉)');
-  $('adStatusHint').textContent = '這台裝置目前記住的狀態:' + text + '(這只是這台裝置自己記住的,不是所有老師當下看到的狀態,想確認就直接打開 App 看看)。';
-}
-$('adTurnOnBtn').addEventListener('click', ()=>{
-  const u = adToggleUrl(true);
-  if(u) window.open(u, '_blank');
-});
-$('adTurnOffBtn').addEventListener('click', ()=>{
-  const u = adToggleUrl(false);
-  if(u) window.open(u, '_blank');
-});
-$('adRefreshStatusBtn').addEventListener('click', async ()=>{
-  $('adStatusHint').textContent = '查詢中…';
-  await refreshAdConfig();
-  updateAdStatusHint();
-});
-
 async function init(){
   $('dateInput').value = new Date().toISOString().slice(0,10);
   await loadRoster();
@@ -2440,7 +2326,6 @@ async function init(){
   $('cfgExtra').value = config.extraFields || '';
   $('cfgSheetWebhook').value = config.sheetWebhookUrl || '';
   $('cfgLineBasic').value = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
-  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('appsScriptCode').value = APPS_SCRIPT_CODE;
 
   computeClasses();
