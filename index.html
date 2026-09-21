@@ -674,6 +674,23 @@
       </div>
     </details>
 
+    <p id="adminPanelTrigger" style="text-align:center;color:#ccc;font-size:11px;margin:24px 0 0;cursor:default;user-select:none;">早自習點名簿</p>
+
+    <details class="note" id="adToggleSection" style="display:none;">
+      <summary>進階:遠端廣告開關(只有開發作者用得到)</summary>
+      <div class="note-body">
+        <p style="margin:0 0 8px;">這個區塊只有「這個 App 的開發作者」自己看得到、用得到,跟平常點名、同步試算表完全無關,一般老師不用理會這裡的任何內容。用來遠端開關首頁最下方那則推薦廣告,對所有老師的裝置一次生效,不需要大家重新安裝或更新網頁。</p>
+        <p style="margin:0 0 8px;">需要上面「進階:同步紀錄到Google試算表」那邊已經部署好 Apps Script 網頁應用程式(用同一個網址),並且把程式碼裡 <code>AD_TOGGLE_SECRET</code> 那一行改成自己知道的密語。</p>
+        <div class="field-row"><label>廣告控制密語</label><input type="text" id="cfgAdSecret" placeholder="跟 Apps Script 程式碼裡 AD_TOGGLE_SECRET 一樣的密語"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button type="button" class="btn-secondary" id="adTurnOnBtn">開啟廣告</button>
+          <button type="button" class="btn-secondary" id="adTurnOffBtn">關閉廣告</button>
+          <button type="button" class="btn-secondary" id="adRefreshStatusBtn">重新檢查目前狀態</button>
+        </div>
+        <p class="hint" id="adStatusHint" style="margin:8px 0 0;">尚未查詢。</p>
+      </div>
+    </details>
+
     <div class="modal-actions">
       <button class="btn-secondary" id="resetSettingsBtn">還原預設值</button>
       <button class="btn-secondary" id="closeSettingsBtn">取消</button>
@@ -971,7 +988,7 @@ const APPS_SCRIPT_CODE = `// 以下這段是給「這個 App 的開發作者」�
 // 同步功能,也不會有廣告跑出來。
 // 只有開發作者自己需要把下面這一行改成作者自己知道的一串英數字密語
 // (不要用生日、班級號碼這種容易猜到的),改完記得重新部署一次才會生效。
-var AD_TOGGLE_SECRET = 'change-me-12345';
+var AD_TOGGLE_SECRET = '0928';
 
 function doGet(e) {
   if (e.parameter.action === 'getAdConfig') {
@@ -1114,6 +1131,7 @@ const DEFAULT_CONFIG = {
   extraFields: '',
   sheetWebhookUrl: '',
   lineBasicMessage: '家長早,',
+  adToggleSecret: '',
 };
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
@@ -1993,13 +2011,35 @@ $('settingsOverlay').addEventListener('click', (e)=>{
   });
 })();
 
+// 設定視窗最下方有一行不起眼的小字「早自習點名簿」,連續點 20 下會叫出
+// 「遠端廣告開關」區塊——這是只有開發作者自己會用到的功能,一般老師平常
+// 看不到、也不需要用到。1.2 秒內沒有繼續點,計數會重置,避免不小心連點
+// 好幾下就誤觸發。
+(function setupAdPanelTap(){
+  let tapCount = 0;
+  let tapTimer = null;
+  $('adminPanelTrigger').addEventListener('click', ()=>{
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(()=>{ tapCount = 0; }, 1200);
+    if(tapCount >= 20){
+      tapCount = 0;
+      $('adToggleSection').style.display = '';
+      $('adToggleSection').open = true;
+      updateAdStatusHint();
+      showCenterToast('已開啟遠端廣告開關區塊');
+    }
+  });
+})();
+
 $('resetSettingsBtn').addEventListener('click', async ()=>{
   const ok = await showConfirm('確定要還原成預設的表單網址與 entry 代碼嗎?(班級與導師名單、試算表同步網址、LINE 訊息開頭不會被這個按鈕影響)');
   if(!ok) return;
   const keepOptions = config.classTeacherOptions;
   const keepWebhook = config.sheetWebhookUrl;
   const keepLineBasic = config.lineBasicMessage;
-  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions, sheetWebhookUrl: keepWebhook, lineBasicMessage: keepLineBasic });
+  const keepAdSecret = config.adToggleSecret;
+  config = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), { classTeacherOptions: keepOptions, sheetWebhookUrl: keepWebhook, lineBasicMessage: keepLineBasic, adToggleSecret: keepAdSecret });
   await saveConfig();
   $('cfgUrl').value = config.url;
   $('cfgGradeEntry').value = config.gradeEntry;
@@ -2012,6 +2052,7 @@ $('resetSettingsBtn').addEventListener('click', async ()=>{
   $('cfgExtra').value = config.extraFields;
   $('cfgSheetWebhook').value = config.sheetWebhookUrl;
   $('cfgLineBasic').value = config.lineBasicMessage;
+  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('cfgBulkPaste').value = buildBulkPasteText();
   alert('已還原成預設值並儲存。');
 });
@@ -2102,6 +2143,7 @@ $('saveSettingsBtn').addEventListener('click', async ()=>{
     extraFields: $('cfgExtra').value,
     sheetWebhookUrl: $('cfgSheetWebhook').value.trim(),
     lineBasicMessage: $('cfgLineBasic').value,
+    adToggleSecret: $('cfgAdSecret').value.trim(),
   };
   await saveConfig();
   $('settingsOverlay').classList.remove('open');
@@ -2331,6 +2373,49 @@ $('testSheetWriteBtn').addEventListener('click', ()=>{
   window.open(url + sep + 'test=1', '_blank');
 });
 
+// 只有開發作者自己會摸到的三顆按鈕(在被「連續點 20 下」叫出來之前一直是
+// display:none)。用瀏覽器開新分頁直接 GET 那個網址(跟測試連線用同一招),
+// 而不是 fetch()——同樣是因為 Apps Script 回應內容用 fetch() 讀不穩定,
+// 開新分頁反而能讓開發作者自己肉眼看到 Google 那邊真正回傳的確認文字
+// (成功或密語錯誤都會直接顯示出來)。
+function checkAdToggleReady(){
+  const url = $('cfgSheetWebhook').value.trim();
+  if(!url){
+    alert('請先在上面貼上「試算表同步網址」(要先照著上面步驟部署好 Apps Script)。');
+    return null;
+  }
+  const secret = $('cfgAdSecret').value.trim();
+  if(!secret){
+    alert('請先輸入密語(要跟 Apps Script 程式碼裡 AD_TOGGLE_SECRET 那一行設的一樣)。');
+    return null;
+  }
+  return { url, secret };
+}
+function adToggleUrl(on){
+  const ready = checkAdToggleReady();
+  if(!ready) return null;
+  const sep = ready.url.includes('?') ? '&' : '?';
+  return ready.url + sep + 'action=setAdConfig&secret=' + encodeURIComponent(ready.secret) + '&on=' + (on ? '1' : '0');
+}
+function updateAdStatusHint(){
+  const cached = lsGet(AD_CONFIG_CACHE_KEY);
+  const text = cached === '1' ? '開啟' : (cached === '0' ? '關閉' : '尚未取得過(預設視為關閉)');
+  $('adStatusHint').textContent = '這台裝置目前記住的狀態:' + text + '(這只是這台裝置自己記住的,不是所有老師當下看到的狀態,想確認就直接打開 App 看看)。';
+}
+$('adTurnOnBtn').addEventListener('click', ()=>{
+  const u = adToggleUrl(true);
+  if(u) window.open(u, '_blank');
+});
+$('adTurnOffBtn').addEventListener('click', ()=>{
+  const u = adToggleUrl(false);
+  if(u) window.open(u, '_blank');
+});
+$('adRefreshStatusBtn').addEventListener('click', async ()=>{
+  $('adStatusHint').textContent = '查詢中…';
+  await refreshAdConfig();
+  updateAdStatusHint();
+});
+
 async function init(){
   $('dateInput').value = new Date().toISOString().slice(0,10);
   await loadRoster();
@@ -2355,6 +2440,7 @@ async function init(){
   $('cfgExtra').value = config.extraFields || '';
   $('cfgSheetWebhook').value = config.sheetWebhookUrl || '';
   $('cfgLineBasic').value = config.lineBasicMessage || DEFAULT_CONFIG.lineBasicMessage;
+  $('cfgAdSecret').value = config.adToggleSecret || '';
   $('appsScriptCode').value = APPS_SCRIPT_CODE;
 
   computeClasses();
