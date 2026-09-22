@@ -1772,7 +1772,9 @@ function showCenterToast(text, duration){
   requestAnimationFrame(()=>{
     const tw = tip.offsetWidth;
     tip.style.left = Math.max(8, (window.innerWidth - tw) / 2) + 'px';
-    tip.style.top = '18px';
+    // 用 env(safe-area-inset-top) 往下讓開瀏海/動態島(iPhone 直向拿著使用時
+    // 最常見的情況),沒有瀏海的機型這個值是 0,效果等同原本固定的 18px。
+    tip.style.top = 'calc(env(safe-area-inset-top, 0px) + 18px)';
   });
   clearTimeout(showCopyToast._t);
   showCopyToast._t = setTimeout(()=>{ tip.style.display = 'none'; }, duration || 1300);
