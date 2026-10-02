@@ -360,6 +360,28 @@
   .modal details.note summary::before{content:'▸ ';}
   .modal details.note[open] summary::before{content:'▾ ';}
   .modal details.note .note-body{margin-top:10px;}
+  /* 教室座位圖(進階設定) */
+  .seat-wrap{margin-bottom:14px;}
+  .seat-wrap h3{font-size:14px;margin:0 0 6px;color:var(--brown);font-weight:800;}
+  .seat-grid{display:grid;gap:4px;}
+  .seat{position:relative;border:2px solid var(--brown);border-radius:8px;background:#fff;min-height:48px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px 1px;
+    text-align:center;overflow:hidden;cursor:pointer;user-select:none;-webkit-user-select:none;line-height:1.2;}
+  .seat .no{font-size:10px;color:var(--ink-soft);font-weight:700;}
+  .seat .nm{font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;}
+  .seat .st{font-size:10px;font-weight:800;color:#fff;}
+  .seat.empty{border:2px dashed var(--line-soft);background:transparent;cursor:default;}
+  .seat.none{border-color:transparent;background:transparent;color:var(--line-soft);font-size:16px;cursor:default;}
+  .seat.absent{background:var(--st-red);}
+  .seat.absent .no, .seat.absent .nm{color:#fff;}
+  .seat.edit{cursor:pointer;}
+  .seat.edit.empty, .seat.edit.none{cursor:pointer;border:2px dashed var(--brown-soft);}
+  .seat.edit .nm{font-size:11px;}
+  .seat select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;}
+  .board{background:#3E5C4A;color:#fff;text-align:center;border-radius:6px;padding:4px;font-size:12px;
+    font-weight:800;letter-spacing:4px;margin:6px 0;}
+  #seatEditor select, #seatEditor input[type=number]{border:2px solid var(--brown);border-radius:8px;padding:6px 8px;
+    font-size:13.5px;font-family:inherit;background:#fff;}
   .empty-state{text-align:center;padding:30px 10px;color:var(--ink-soft);font-size:14px;}
 
   /* 手機橫向時,螢幕寬度變多、高度變少:趁多出來的寬度把姓名、座號、狀態圖示都
@@ -407,11 +429,31 @@
     尚未上傳班級名單,請點右上角 ⚙ 設定,上傳班級的 Excel 名單。
   </div>
 
+  <div class="card" id="seatMapCard" style="display:none;">
+    <div class="toolbar">
+      <h2 style="margin:0;">誰還沒來?</h2>
+      <span class="count" id="seatMapCount"></span>
+    </div>
+    <p class="hint">點一下沒來的同學(再點一次取消)。沒來的會先記成曠課,下一步再改成正確的假別。</p>
+    <div id="seatMapBody"></div>
+    <div class="submit-row">
+      <button class="btn-primary" id="seatNextBtn">下一步:填寫未到同學</button>
+    </div>
+  </div>
+
   <div class="card" id="attendanceCard" style="display:none;">
     <div class="toolbar">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <h2 style="margin:0;">今日點名</h2>
         <button class="btn-secondary" id="allPresentBtn" style="padding:6px 14px;font-size:12.5px;">全體出席</button>
+        <button class="btn-secondary" id="backToSeatBtn" style="display:none;padding:6px 14px;font-size:12.5px;">座位圖</button>
+        <label class="switch-row" id="focusToggleRow" style="display:none;">
+          <span>只看未到</span>
+          <span class="switch">
+            <input type="checkbox" id="focusToggle" checked>
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+        </label>
       </div>
       <span class="count" id="rosterCount"></span>
     </div>
@@ -504,6 +546,33 @@
 
     <hr style="border:none;border-top:2px solid var(--line-soft);margin:22px 0;">
 
+    <h2 class="serif">進階設定</h2>
+    <label class="switch-row" style="margin-bottom:12px;font-size:13.5px;">
+      <span class="switch">
+        <input type="checkbox" id="seatEnable">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </span>
+      <span>打開 App 時先顯示教室座位圖</span>
+    </label>
+    <div id="seatEditor" style="display:none;">
+      <p class="hint">設定好之後,每次打開 App 會先看到教室座位圖,點出沒來的同學,再進到名單只填未到同學的狀態。
+      點一下座位格就能選同學;已經排好的同學不會再出現在其他格的選單裡。選「✕ 沒有座位」代表那格沒有桌子。</p>
+      <div class="field-row" id="seatClassRow"><label>班級</label><select id="seatClass"></select></div>
+      <div class="field-row"><label>黑板位置</label>
+        <select id="seatBoard"><option value="top">上方</option><option value="bottom">下方</option></select></div>
+      <div class="field-row"><label>教室排列</label>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <input type="number" id="seatCols" min="1" max="10" style="width:64px;"> 欄 ×
+          <input type="number" id="seatRows" min="1" max="10" style="width:64px;"> 列
+        </div></div>
+      <div id="seatEditGrid"></div>
+      <p class="hint" id="seatEditInfo" style="margin:8px 0;"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" id="seatAutoBtn">依座號排入空位</button>
+        <button type="button" class="btn-secondary" id="seatClearBtn">清空這班的座位</button>
+      </div>
+    </div>
+    <hr style="border:none;border-top:2px solid var(--line-soft);margin:22px 0;">
     <h2 class="serif">表單欄位設定</h2>
 
     <div class="field-row" style="align-items:flex-start;">
@@ -1349,12 +1418,29 @@ document.addEventListener('click', ()=> hideNameTooltip());
 document.addEventListener('scroll', ()=> hideNameTooltip(), true);
 
 function renderAttendance(){
-  const students = allStudentsSorted();
-  const hasRoster = students.length > 0;
+  const allStudents = allStudentsSorted();
+  const hasRoster = allStudents.length > 0;
+  const seatOn = hasRoster && seatLayoutReady();
+  if(!seatOn){ seatStage = false; focusKeys = null; }
+  $('seatMapCard').style.display = seatOn && seatStage ? 'block' : 'none';
+  $('backToSeatBtn').style.display = seatOn ? '' : 'none';
+  $('focusToggleRow').style.display = seatOn && focusKeys ? '' : 'none';
+  if(seatOn && seatStage){
+    $('attendanceCard').style.display = 'none';
+    $('summaryCard').style.display = 'none';
+    $('emptyStateCard').style.display = 'none';
+    renderSeatMap();
+    return;
+  }
+  // 從座位圖過來時,只列出剛剛點成沒來的同學(和沒排進座位圖的同學);中途改成出席也不會消失
+  const focusing = seatOn && focusKeys && $('focusToggle').checked;
+  const students = focusing ? allStudents.filter(s => focusKeys.has(statusKey(s.class, s.no))) : allStudents;
   $('attendanceCard').style.display = hasRoster ? 'block' : 'none';
   $('summaryCard').style.display = hasRoster ? 'block' : 'none';
   $('emptyStateCard').style.display = hasRoster ? 'none' : 'block';
-  $('rosterCount').textContent = hasRoster ? `共 ${students.length} 位學生,${classes.length} 個班級` : '';
+  $('rosterCount').textContent = !hasRoster ? ''
+    : focusing ? `未到 ${students.length} 位(全班 ${allStudents.length} 位)`
+    : `共 ${allStudents.length} 位學生,${classes.length} 個班級`;
 
   const spans = computeClassSpans(students);
   const body = $('rosterBody');
@@ -1414,6 +1500,9 @@ function renderAttendance(){
     });
     body.appendChild(tr);
   });
+  if(focusing && !students.length){
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:22px;color:var(--ink-soft);font-weight:700;">今天全員到齊 🎉</td></tr>';
+  }
 
   renderSummary();
 }
@@ -1576,6 +1665,7 @@ $('clearRosterBtn').addEventListener('click', async ()=>{
 });
 
 $('dateInput').addEventListener('change', async ()=>{
+  seatStage = true; focusKeys = null;
   await loadAttendance();
   renderAttendance();
 });
@@ -2293,12 +2383,213 @@ $('testSheetWriteBtn').addEventListener('click', ()=>{
   window.open(url + sep + 'test=1', '_blank');
 });
 
+// ════════ 教室座位圖(進階設定) ════════
+// 存法:{enabled, classes:{班級:{board:'top'|'bottom', cols, rows, cells:[...]}}}
+// cells 依「黑板在上方」時的畫面順序一列一列排,每格是 ''(還沒排)、'x'(沒有座位)或學生座號。
+// 黑板選下方時整張圖轉 180 度顯示(老師站在講台看過去的方向)。
+let seatCfg = {enabled:false, classes:{}};
+let seatDraft = null;      // 設定視窗裡正在編輯的版本,按「儲存設定」才寫回
+let seatStage = false;     // true = 目前在座位圖畫面
+let focusKeys = null;      // 從座位圖按「下一步」時,要列出來的同學
+function loadSeatCfg(){
+  try{ seatCfg = Object.assign({enabled:false, classes:{}}, JSON.parse(lsGet('seat-layout') || '{}')); }
+  catch(e){ seatCfg = {enabled:false, classes:{}}; }
+}
+const studentsOf = cls => rosterRaw.filter(s => s.class === cls);
+function seatStudent(cls, v){
+  if(!v || v === 'x') return null;
+  return studentsOf(cls).find(s => s.no === v) || null;
+}
+function seatLayoutReady(cfg){
+  cfg = cfg || seatCfg;
+  return !!cfg.enabled && classes.some(c => {
+    const L = cfg.classes[c];
+    return L && L.cells.some(v => seatStudent(c, v));
+  });
+}
+// 畫面上第 i 格對應到 cells 的哪一格
+const seatIndex = (L, i) => L.board === 'bottom' ? L.cols * L.rows - 1 - i : i;
+function boardEl(){
+  const d = document.createElement('div');
+  d.className = 'board';
+  d.textContent = '黑板';
+  return d;
+}
+function seatGridEl(L, makeCell){
+  const wrap = document.createElement('div');
+  const grid = document.createElement('div');
+  grid.className = 'seat-grid';
+  grid.style.gridTemplateColumns = `repeat(${L.cols}, minmax(0, 1fr))`;
+  for(let i = 0; i < L.cols * L.rows; i++) grid.appendChild(makeCell(seatIndex(L, i)));
+  if(L.board === 'bottom'){ wrap.appendChild(grid); wrap.appendChild(boardEl()); }
+  else{ wrap.appendChild(boardEl()); wrap.appendChild(grid); }
+  return wrap;
+}
+
+function renderSeatMap(){
+  const body = $('seatMapBody');
+  body.innerHTML = '';
+  let absent = 0, total = 0;
+  classes.forEach(cls=>{
+    const L = seatCfg.classes[cls];
+    if(!L || !L.cells.some(v => seatStudent(cls, v))) return;
+    const box = document.createElement('div');
+    box.className = 'seat-wrap';
+    if(classes.length > 1){
+      const h = document.createElement('h3');
+      h.textContent = cls;
+      box.appendChild(h);
+    }
+    box.appendChild(seatGridEl(L, idx=>{
+      const v = L.cells[idx], s = seatStudent(cls, v);
+      const cell = document.createElement('div');
+      if(!s){
+        cell.className = 'seat ' + (v === 'x' ? 'none' : 'empty');
+        return cell;
+      }
+      const key = statusKey(cls, s.no);
+      const st = currentStatus[key] || '出席';
+      total++;
+      if(st !== '出席') absent++;
+      cell.className = 'seat' + (st !== '出席' ? ' absent' : '');
+      cell.innerHTML = `<span class="no">${s.no}</span><span class="nm"></span>` + (st !== '出席' ? `<span class="st">${st}</span>` : '');
+      cell.querySelector('.nm').textContent = shortName(s.name);
+      cell.addEventListener('click', async ()=>{
+        currentStatus[key] = (currentStatus[key] || '出席') === '出席' ? '曠課' : '出席';
+        await saveAttendance();
+        renderSeatMap();
+      });
+      return cell;
+    }));
+    body.appendChild(box);
+  });
+  $('seatMapCount').textContent = `沒來 ${absent} 位 / ${total} 位`;
+}
+
+$('seatNextBtn').addEventListener('click', ()=>{
+  // 沒來的同學 + 沒排進座位圖的同學(座位圖上點不到,要在名單裡自己看)
+  const placed = new Set();
+  classes.forEach(cls=>{
+    const L = seatCfg.classes[cls];
+    if(L) L.cells.forEach(v=>{ const s = seatStudent(cls, v); if(s) placed.add(statusKey(cls, s.no)); });
+  });
+  focusKeys = new Set(allStudentsSorted().map(s => statusKey(s.class, s.no))
+    .filter(k => !placed.has(k) || (currentStatus[k] || '出席') !== '出席'));
+  seatStage = false;
+  $('focusToggle').checked = true;
+  renderAttendance();
+  window.scrollTo(0, 0);
+});
+$('backToSeatBtn').addEventListener('click', ()=>{
+  seatStage = true;
+  renderAttendance();
+  window.scrollTo(0, 0);
+});
+$('focusToggle').addEventListener('change', renderAttendance);
+
+// ── 設定視窗裡的座位編輯器 ──
+function draftLayout(cls){
+  if(!seatDraft.classes[cls]){
+    const n = studentsOf(cls).length || 30;
+    const cols = 6, rows = Math.max(1, Math.ceil(n / cols));
+    seatDraft.classes[cls] = {board:'top', cols, rows, cells: new Array(cols * rows).fill('')};
+  }
+  return seatDraft.classes[cls];
+}
+function resizeLayout(L, cols, rows){
+  const cells = new Array(cols * rows).fill('');
+  for(let r = 0; r < Math.min(rows, L.rows); r++)
+    for(let c = 0; c < Math.min(cols, L.cols); c++) cells[r * cols + c] = L.cells[r * L.cols + c] || '';
+  L.cols = cols; L.rows = rows; L.cells = cells;
+}
+function renderSeatEditor(){
+  const on = $('seatEnable').checked;
+  seatDraft.enabled = on;
+  $('seatEditor').style.display = on ? 'block' : 'none';
+  if(!on) return;
+  const grid = $('seatEditGrid');
+  grid.innerHTML = '';
+  if(!classes.length){
+    $('seatEditInfo').textContent = '請先在上面設定班級名單。';
+    return;
+  }
+  $('seatClassRow').style.display = classes.length > 1 ? '' : 'none';
+  const sel = $('seatClass');
+  if(sel.options.length !== classes.length || [...sel.options].some((o, i) => o.value !== classes[i])){
+    sel.innerHTML = classes.map(c => `<option></option>`).join('');
+    classes.forEach((c, i) => { sel.options[i].value = c; sel.options[i].textContent = c; });
+  }
+  if(!classes.includes(sel.value)) sel.value = classes[0];
+  const cls = sel.value, L = draftLayout(cls), list = studentsOf(cls);
+  $('seatBoard').value = L.board;
+  $('seatCols').value = L.cols;
+  $('seatRows').value = L.rows;
+  const used = new Set(L.cells.filter(v => seatStudent(cls, v)));
+  grid.appendChild(seatGridEl(L, idx=>{
+    const v = L.cells[idx], s = seatStudent(cls, v);
+    const cell = document.createElement('div');
+    cell.className = 'seat edit' + (s ? '' : v === 'x' ? ' none' : ' empty');
+    cell.innerHTML = s ? `<span class="no">${s.no}</span><span class="nm"></span>` : (v === 'x' ? '✕' : '<span class="no">+</span>');
+    if(s) cell.querySelector('.nm').textContent = shortName(s.name);
+    const pick = document.createElement('select');
+    const add = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; pick.appendChild(o); };
+    add('', '(還沒排)');
+    add('x', '✕ 沒有座位');
+    // 已經排在別格的同學不列出來,只留這格自己的
+    list.forEach(st => { if(st.no === v || !used.has(st.no)) add(st.no, `${st.no} ${st.name}`); });
+    pick.value = s ? s.no : (v === 'x' ? 'x' : '');
+    pick.addEventListener('change', ()=>{ L.cells[idx] = pick.value; renderSeatEditor(); });
+    cell.appendChild(pick);
+    return cell;
+  }));
+  const left = list.filter(st => !used.has(st.no));
+  $('seatEditInfo').textContent = left.length
+    ? `還有 ${left.length} 位沒排:${left.map(st => st.no).join('、')}(沒排到的同學不會出現在座位圖,下一步的名單裡會一起列出)`
+    : `全班 ${list.length} 位都排好了。`;
+}
+$('seatEnable').addEventListener('change', renderSeatEditor);
+$('seatClass').addEventListener('change', renderSeatEditor);
+$('seatBoard').addEventListener('change', ()=>{ draftLayout($('seatClass').value).board = $('seatBoard').value; renderSeatEditor(); });
+['seatCols', 'seatRows'].forEach(id => $(id).addEventListener('change', ()=>{
+  const L = draftLayout($('seatClass').value);
+  const clamp = v => Math.max(1, Math.min(10, parseInt(v, 10) || 1));
+  resizeLayout(L, clamp($('seatCols').value), clamp($('seatRows').value));
+  renderSeatEditor();
+}));
+$('seatAutoBtn').addEventListener('click', ()=>{
+  const cls = $('seatClass').value, L = draftLayout(cls);
+  const used = new Set(L.cells.filter(v => seatStudent(cls, v)));
+  const left = studentsOf(cls).filter(st => !used.has(st.no))
+    .sort((a, b) => (parseInt(a.no) || 0) - (parseInt(b.no) || 0));
+  L.cells = L.cells.map(v => (!v && left.length) ? left.shift().no : v);
+  renderSeatEditor();
+});
+$('seatClearBtn').addEventListener('click', ()=>{
+  const L = draftLayout($('seatClass').value);
+  L.cells = L.cells.map(() => '');
+  renderSeatEditor();
+});
+$('settingsBtn').addEventListener('click', ()=>{
+  seatDraft = JSON.parse(JSON.stringify(seatCfg));
+  $('seatEnable').checked = !!seatDraft.enabled;
+  renderSeatEditor();
+});
+$('saveSettingsBtn').addEventListener('click', ()=>{
+  if(!seatDraft) return;
+  const wasReady = seatLayoutReady();
+  seatCfg = seatDraft;
+  lsSet('seat-layout', JSON.stringify(seatCfg));
+  if(!wasReady && seatLayoutReady()){ seatStage = true; focusKeys = null; }
+  renderAttendance();
+});
+
 async function init(){
   // 用本地時間算今天:toISOString() 是 UTC,台灣早上 8 點前會變成前一天
   const now = new Date();
   $('dateInput').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,10);
   await loadRoster();
   await loadConfig();
+  loadSeatCfg();
   loadSchoolRosterData();
   populateSchoolRosterSelect();
   refreshAdConfig(); // 不 await——問廣告開關狀態不該卡住其他畫面的載入
@@ -2324,6 +2615,7 @@ async function init(){
   computeClasses();
   renderRosterSummary();
   await loadAttendance();
+  seatStage = seatLayoutReady();
   renderAttendance();
 }
 
