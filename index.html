@@ -514,9 +514,14 @@
     <div class="field-row" style="align-items:flex-start;">
       <label>快速選班級</label>
       <div style="width:100%;">
-        <select id="schoolRosterSelect" style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;">
-        </select>
-        <button type="button" class="btn-secondary" id="applySchoolRosterBtn" style="margin-top:8px;">套用這個班級的名單</button>
+        <div id="schoolRosterSelects">
+          <select id="schoolRosterSelect" class="school-roster-select" style="width:100%;border:2px solid var(--brown);border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff;">
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button type="button" class="btn-secondary" id="addSchoolRosterBtn">+ 再加一個班級</button>
+          <button type="button" class="btn-secondary" id="applySchoolRosterBtn">套用名單</button>
+        </div>
       </div>
     </div>
 
@@ -792,8 +797,30 @@ async function saveSchoolRosterData(){
 }
 
 function populateSchoolRosterSelect(){
-  const sel = $('schoolRosterSelect');
-  if(!sel) return;
+  document.querySelectorAll('.school-roster-select').forEach(fillSchoolRosterSelect);
+}
+// 合班時可以多選幾個班級一起套用:第一個選單固定在,其他的用「+ 再加一個班級」加進來
+function addSchoolRosterSelect(){
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;margin-top:6px;';
+  const sel = document.createElement('select');
+  sel.className = 'school-roster-select';
+  sel.style.cssText = $('schoolRosterSelect').style.cssText;
+  fillSchoolRosterSelect(sel);
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'btn-secondary';
+  del.textContent = '✕';
+  del.title = '移除這個班級';
+  del.style.cssText = 'padding:6px 12px;flex:0 0 auto;';
+  del.addEventListener('click', ()=>row.remove());
+  row.appendChild(sel);
+  row.appendChild(del);
+  $('schoolRosterSelects').appendChild(row);
+  return sel;
+}
+function fillSchoolRosterSelect(sel){
+  const keep = sel.value;
   sel.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
@@ -810,6 +837,7 @@ function populateSchoolRosterSelect(){
     });
     sel.appendChild(og);
   });
+  if([...sel.options].some(o => o.value === keep)) sel.value = keep;
 }
 
 // 把「班級與導師」選單裡的一個選項字串拆成班級名稱跟導師姓名。格式通常是
@@ -854,28 +882,35 @@ function findClassTeacherOptionForRosterClass(className){
 // 「高二理」「高二文」這種混班選修、學生其實分屬不同導師班,無法直接
 // 對應到單一導師),就不會自動切換,維持原本選的值,請自己手動確認。
 async function applySelectedSchoolRoster(){
-  const sel = $('schoolRosterSelect');
-  const val = sel.value;
-  if(!val){
+  const vals = [...new Set([...document.querySelectorAll('.school-roster-select')].map(sel => sel.value).filter(Boolean))];
+  if(!vals.length){
     alert('請先選擇一個班級。');
     return;
   }
-  const [gi, ci] = val.split('|').map(Number);
-  const g = (schoolRosterData || [])[gi];
-  const c = g && g.classes[ci];
-  if(!c){
+  const picked = vals.map(val => {
+    const [gi, ci] = val.split('|').map(Number);
+    const g = (schoolRosterData || [])[gi];
+    return g && g.classes[ci];
+  });
+  if(picked.some(c => !c)){
     alert('找不到這個班級,請重新選擇。');
     return;
   }
-  rosterRaw = c.students.map(s => ({ class: c.name, no: s.no, name: s.name, zhuyinName: '' }));
+  rosterRaw = picked.flatMap(c => c.students.map(s => ({ class: c.name, no: s.no, name: s.name, zhuyinName: '' })));
   await saveRoster();
   computeClasses();
   renderRosterSummary();
   await loadAttendance();
   renderAttendance();
 
-  const matchedOption = findClassTeacherOptionForRosterClass(c.name);
-  if(matchedOption){
+  // 多個班級合在一起時,只有全部都對到同一個「班級與導師」選項才自動切換
+  const c = picked.length === 1 ? picked[0]
+    : { name: picked.map(x => x.name).join('、'), students: rosterRaw };
+  const matches = [...new Set(picked.map(x => findClassTeacherOptionForRosterClass(x.name)))];
+  const matchedOption = matches.length === 1 ? matches[0] : null;
+  if(picked.length > 1 && !matchedOption){
+    showCenterToast(`已套用「${c.name}」共 ${picked.length} 個班級的名單(${c.students.length}人)。合班沒辦法對到單一的「班級與導師」,請自行手動選擇`, 3600);
+  }else if(matchedOption){
     const ctSel = $('cfgClassTeacherSelect');
     ctSel.value = matchedOption;
     ctSel.dispatchEvent(new Event('change'));
@@ -1613,6 +1648,9 @@ $('xlsxFile').addEventListener('change', (e)=>{
   reader.readAsArrayBuffer(file);
 });
 
+$('addSchoolRosterBtn').addEventListener('click', ()=>{
+  addSchoolRosterSelect();
+});
 $('applySchoolRosterBtn').addEventListener('click', ()=>{
   applySelectedSchoolRoster();
 });
