@@ -562,7 +562,6 @@
     <div id="seatEditor" style="display:none;">
       <p class="hint">設定好之後,每次打開 App 會先看到教室座位圖,點出沒來的同學,再進到名單只填未到同學的狀態。
       點一下座位格就能選同學;已經排好的同學不會再出現在其他格的選單裡。選「✕ 沒有座位」代表那格沒有桌子。</p>
-      <div class="field-row" id="seatClassRow"><label>班級</label><select id="seatClass"></select></div>
       <div class="field-row"><label>黑板位置</label>
         <select id="seatBoard"><option value="top">上方</option><option value="bottom">下方</option></select></div>
       <div class="field-row"><label>教室排列</label>
@@ -570,11 +569,17 @@
           <input type="number" id="seatCols" min="1" max="10" style="width:64px;"> 欄 ×
           <input type="number" id="seatRows" min="1" max="10" style="width:64px;"> 列
         </div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px;">
+        <select id="seatSeqClass"></select>
+        <button type="button" class="btn-secondary" id="seatSeqBtn">依座號點選排座位</button>
+        <button type="button" class="btn-secondary" id="seatUndoBtn" style="display:none;">復原上一個</button>
+      </div>
+      <p class="hint" id="seatSeqHint" style="display:none;margin:0 0 8px;font-weight:800;color:var(--brown);"></p>
       <div id="seatEditGrid"></div>
       <p class="hint" id="seatEditInfo" style="margin:8px 0;"></p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" class="btn-secondary" id="seatAutoBtn">依座號排入空位</button>
-        <button type="button" class="btn-secondary" id="seatClearBtn">清空這班的座位</button>
+        <button type="button" class="btn-secondary" id="seatClearBtn">清空所有座位</button>
       </div>
     </div>
     <hr style="border:none;border-top:2px solid var(--line-soft);margin:22px 0;">
@@ -2422,29 +2427,34 @@ $('testSheetWriteBtn').addEventListener('click', ()=>{
 });
 
 // ════════ 教室座位圖(進階設定) ════════
-// 存法:{enabled, classes:{班級:{board:'top'|'bottom', cols, rows, cells:[...]}}}
-// cells 依「黑板在上方」時的畫面順序一列一列排,每格是 ''(還沒排)、'x'(沒有座位)或學生座號。
+// 名單裡不管有幾個班級(合班),都坐在同一間教室,所以只有一張座位圖。
+// 存法:{enabled, board:'top'|'bottom', cols, rows, cells:[...]}
+// cells 依「黑板在上方」時的畫面順序一列一列排,每格是 ''(還沒排)、'x'(沒有座位)或 statusKey(班級::座號)。
 // 黑板選下方時整張圖轉 180 度顯示(老師站在講台看過去的方向)。
-let seatCfg = {enabled:false, classes:{}};
+let seatCfg = {enabled:false};
 let seatDraft = null;      // 設定視窗裡正在編輯的版本,按「儲存設定」才寫回
 let seatStage = false;     // true = 目前在座位圖畫面
 let focusKeys = null;      // 從座位圖按「下一步」時,要列出來的同學
 function loadSeatCfg(){
-  try{ seatCfg = Object.assign({enabled:false, classes:{}}, JSON.parse(lsGet('seat-layout') || '{}')); }
-  catch(e){ seatCfg = {enabled:false, classes:{}}; }
+  try{ seatCfg = JSON.parse(lsGet('seat-layout') || '{}') || {}; }
+  catch(e){ seatCfg = {}; }
+  // 舊版是每個班級各一張圖:取第一張有排人的,座號換成 班級::座號
+  if(seatCfg.classes){
+    const cls = Object.keys(seatCfg.classes).find(c => seatCfg.classes[c].cells.some(v => v && v !== 'x'));
+    const L = cls ? seatCfg.classes[cls] : null;
+    seatCfg = L ? {enabled: !!seatCfg.enabled, board: L.board, cols: L.cols, rows: L.rows,
+      cells: L.cells.map(v => (!v || v === 'x') ? v : statusKey(cls, v))} : {enabled: !!seatCfg.enabled};
+  }
+  if(typeof seatCfg.enabled !== 'boolean') seatCfg.enabled = false;
 }
-const studentsOf = cls => rosterRaw.filter(s => s.class === cls);
-function seatStudent(cls, v){
+function seatStudent(v){
   if(!v || v === 'x') return null;
-  return studentsOf(cls).find(s => s.no === v) || null;
+  return rosterRaw.find(s => statusKey(s.class, s.no) === v) || null;
 }
-function seatLayoutReady(cfg){
+const seatLayoutReady = cfg => {
   cfg = cfg || seatCfg;
-  return !!cfg.enabled && classes.some(c => {
-    const L = cfg.classes[c];
-    return L && L.cells.some(v => seatStudent(c, v));
-  });
-}
+  return !!cfg.enabled && Array.isArray(cfg.cells) && cfg.cells.some(v => seatStudent(v));
+};
 // 畫面上第 i 格對應到 cells 的哪一格
 const seatIndex = (L, i) => L.board === 'bottom' ? L.cols * L.rows - 1 - i : i;
 function boardEl(){
@@ -2463,54 +2473,60 @@ function seatGridEl(L, makeCell){
   else{ wrap.appendChild(boardEl()); wrap.appendChild(grid); }
   return wrap;
 }
+// 合班時用底色分出是哪一班(座位格太窄放不下班級名稱),上方加圖例
+const SEAT_TINTS = ['#FFFFFF', '#DCEBF7', '#FBE3C0', '#DFF0DC', '#EEDFF4', '#F8DCDC'];
+const seatTint = s => classes.length > 1 ? SEAT_TINTS[classes.indexOf(s.class) % SEAT_TINTS.length] : '';
+const seatNoText = s => classes.length > 1 ? `${s.class} ${s.no}` : s.no;
+function seatLegendEl(){
+  const d = document.createElement('div');
+  d.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;';
+  if(classes.length < 2) return d;
+  classes.forEach(cls=>{
+    const it = document.createElement('span');
+    it.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+    it.innerHTML = '<span style="width:14px;height:14px;border:2px solid var(--brown);border-radius:4px;display:inline-block;"></span>';
+    it.firstChild.style.background = SEAT_TINTS[classes.indexOf(cls) % SEAT_TINTS.length];
+    it.appendChild(document.createTextNode(cls));
+    d.appendChild(it);
+  });
+  return d;
+}
 
 function renderSeatMap(){
   const body = $('seatMapBody');
   body.innerHTML = '';
   let absent = 0, total = 0;
-  classes.forEach(cls=>{
-    const L = seatCfg.classes[cls];
-    if(!L || !L.cells.some(v => seatStudent(cls, v))) return;
-    const box = document.createElement('div');
-    box.className = 'seat-wrap';
-    if(classes.length > 1){
-      const h = document.createElement('h3');
-      h.textContent = cls;
-      box.appendChild(h);
-    }
-    box.appendChild(seatGridEl(L, idx=>{
-      const v = L.cells[idx], s = seatStudent(cls, v);
-      const cell = document.createElement('div');
-      if(!s){
-        cell.className = 'seat ' + (v === 'x' ? 'none' : 'empty');
-        return cell;
-      }
-      const key = statusKey(cls, s.no);
-      const st = currentStatus[key] || '出席';
-      total++;
-      if(st !== '出席') absent++;
-      cell.className = 'seat' + (st !== '出席' ? ' absent' : '');
-      cell.innerHTML = `<span class="no">${s.no}</span><span class="nm"></span>` + (st !== '出席' ? `<span class="st">${st}</span>` : '');
-      cell.querySelector('.nm').textContent = shortName(s.name);
-      cell.addEventListener('click', async ()=>{
-        currentStatus[key] = (currentStatus[key] || '出席') === '出席' ? '曠課' : '出席';
-        await saveAttendance();
-        renderSeatMap();
-      });
+  const L = seatCfg;
+  body.appendChild(seatLegendEl());
+  body.appendChild(seatGridEl(L, idx=>{
+    const v = L.cells[idx], s = seatStudent(v);
+    const cell = document.createElement('div');
+    if(!s){
+      cell.className = 'seat ' + (v === 'x' ? 'none' : 'empty');
       return cell;
-    }));
-    body.appendChild(box);
-  });
+    }
+    const key = statusKey(s.class, s.no);
+    const st = currentStatus[key] || '出席';
+    total++;
+    if(st !== '出席') absent++;
+    cell.className = 'seat' + (st !== '出席' ? ' absent' : '');
+    if(st === '出席' && seatTint(s)) cell.style.background = seatTint(s);
+    cell.innerHTML = `<span class="no"></span><span class="nm"></span>` + (st !== '出席' ? `<span class="st">${st}</span>` : '');
+    cell.querySelector('.no').textContent = s.no;
+    cell.querySelector('.nm').textContent = shortName(s.name);
+    cell.addEventListener('click', async ()=>{
+      currentStatus[key] = (currentStatus[key] || '出席') === '出席' ? '曠課' : '出席';
+      await saveAttendance();
+      renderSeatMap();
+    });
+    return cell;
+  }));
   $('seatMapCount').textContent = `沒來 ${absent} 位 / ${total} 位`;
 }
 
 $('seatNextBtn').addEventListener('click', ()=>{
   // 沒來的同學 + 沒排進座位圖的同學(座位圖上點不到,要在名單裡自己看)
-  const placed = new Set();
-  classes.forEach(cls=>{
-    const L = seatCfg.classes[cls];
-    if(L) L.cells.forEach(v=>{ const s = seatStudent(cls, v); if(s) placed.add(statusKey(cls, s.no)); });
-  });
+  const placed = new Set((seatCfg.cells || []).filter(v => seatStudent(v)));
   focusKeys = new Set(allStudentsSorted().map(s => statusKey(s.class, s.no))
     .filter(k => !placed.has(k) || (currentStatus[k] || '出席') !== '出席'));
   seatStage = false;
@@ -2526,13 +2542,22 @@ $('backToSeatBtn').addEventListener('click', ()=>{
 $('focusToggle').addEventListener('change', renderAttendance);
 
 // ── 設定視窗裡的座位編輯器 ──
-function draftLayout(cls){
-  if(!seatDraft.classes[cls]){
-    const n = studentsOf(cls).length || 30;
-    const cols = 6, rows = Math.max(1, Math.ceil(n / cols));
-    seatDraft.classes[cls] = {board:'top', cols, rows, cells: new Array(cols * rows).fill('')};
+// 「依座號點選」:先選班級,接著每點一個空位,就放進這班還沒排的下一個座號(1、2、3…)
+let seqClass = null, seqHistory = [];
+function seqNext(L){
+  if(!seqClass) return null;
+  const used = new Set(L.cells.filter(v => seatStudent(v)));
+  return allStudentsSorted().filter(st => st.class === seqClass)
+    .sort((a, b) => (parseInt(a.no) || 0) - (parseInt(b.no) || 0))
+    .find(st => !used.has(statusKey(st.class, st.no))) || null;
+}
+function draftLayout(){
+  const L = seatDraft;
+  if(!Array.isArray(L.cells)){
+    const cols = 6, rows = Math.max(1, Math.ceil((rosterRaw.length || 30) / cols));
+    Object.assign(L, {board:'top', cols, rows, cells: new Array(cols * rows).fill('')});
   }
-  return seatDraft.classes[cls];
+  return L;
 }
 function resizeLayout(L, cols, rows){
   const cells = new Array(cols * rows).fill('');
@@ -2547,68 +2572,110 @@ function renderSeatEditor(){
   if(!on) return;
   const grid = $('seatEditGrid');
   grid.innerHTML = '';
-  if(!classes.length){
+  if(!rosterRaw.length){
     $('seatEditInfo').textContent = '請先在上面設定班級名單。';
     return;
   }
-  $('seatClassRow').style.display = classes.length > 1 ? '' : 'none';
-  const sel = $('seatClass');
-  if(sel.options.length !== classes.length || [...sel.options].some((o, i) => o.value !== classes[i])){
-    sel.innerHTML = classes.map(c => `<option></option>`).join('');
-    classes.forEach((c, i) => { sel.options[i].value = c; sel.options[i].textContent = c; });
+  const L = draftLayout(), list = allStudentsSorted();
+  const seqSel = $('seatSeqClass');
+  if([...seqSel.options].map(o => o.value).join('|') !== classes.join('|')){
+    seqSel.innerHTML = '';
+    classes.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; seqSel.appendChild(o); });
   }
-  if(!classes.includes(sel.value)) sel.value = classes[0];
-  const cls = sel.value, L = draftLayout(cls), list = studentsOf(cls);
+  seqSel.style.display = classes.length > 1 ? '' : 'none';
+  if(seqClass && !classes.includes(seqClass)) seqClass = null;
+  if(seqClass) seqSel.value = seqClass;
+  seqSel.disabled = !!seqClass;
+  const next = seqNext(L);
+  $('seatSeqBtn').textContent = seqClass ? '完成點選' : '依座號點選排座位';
+  $('seatUndoBtn').style.display = seqClass && seqHistory.length ? '' : 'none';
+  $('seatSeqHint').style.display = seqClass ? '' : 'none';
+  $('seatSeqHint').textContent = !seqClass ? ''
+    : next ? `👉 點一個空位放:${classes.length > 1 ? seqClass + ' ' : ''}${next.no} ${next.name}`
+    : '這班都排好了,按「完成點選」結束,或換一班繼續。';
   $('seatBoard').value = L.board;
   $('seatCols').value = L.cols;
   $('seatRows').value = L.rows;
-  const used = new Set(L.cells.filter(v => seatStudent(cls, v)));
+  const used = new Set(L.cells.filter(v => seatStudent(v)));
+  grid.appendChild(seatLegendEl());
   grid.appendChild(seatGridEl(L, idx=>{
-    const v = L.cells[idx], s = seatStudent(cls, v);
+    const v = L.cells[idx], s = seatStudent(v);
     const cell = document.createElement('div');
     cell.className = 'seat edit' + (s ? '' : v === 'x' ? ' none' : ' empty');
-    cell.innerHTML = s ? `<span class="no">${s.no}</span><span class="nm"></span>` : (v === 'x' ? '✕' : '<span class="no">+</span>');
-    if(s) cell.querySelector('.nm').textContent = shortName(s.name);
+    cell.innerHTML = s ? `<span class="no"></span><span class="nm"></span>` : (v === 'x' ? '✕' : '<span class="no">+</span>');
+    if(s){
+      if(seatTint(s)) cell.style.background = seatTint(s);
+      cell.querySelector('.no').textContent = s.no;
+      cell.querySelector('.nm').textContent = shortName(s.name);
+    }
     const pick = document.createElement('select');
-    const add = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; pick.appendChild(o); };
-    add('', '(還沒排)');
-    add('x', '✕ 沒有座位');
-    // 已經排在別格的同學不列出來,只留這格自己的
-    list.forEach(st => { if(st.no === v || !used.has(st.no)) add(st.no, `${st.no} ${st.name}`); });
-    pick.value = s ? s.no : (v === 'x' ? 'x' : '');
+    const add = (parent, value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; parent.appendChild(o); };
+    add(pick, '', '(還沒排)');
+    add(pick, 'x', '✕ 沒有座位');
+    // 已經排在別格的同學不列出來,只留這格自己的;合班時依班級分組
+    classes.forEach(cls=>{
+      const group = classes.length > 1 ? document.createElement('optgroup') : pick;
+      if(group !== pick) group.label = cls;
+      list.filter(st => st.class === cls).forEach(st=>{
+        const k = statusKey(st.class, st.no);
+        if(k === v || !used.has(k)) add(group, k, `${st.no} ${st.name}`);
+      });
+      if(group !== pick && group.children.length) pick.appendChild(group);
+    });
+    pick.value = s ? v : (v === 'x' ? 'x' : '');
     pick.addEventListener('change', ()=>{ L.cells[idx] = pick.value; renderSeatEditor(); });
+    if(seqClass){
+      // 依座號點選中:點空位直接放下一位,不跳選單;已經有人或沒有座位的格子不動
+      if(!s && v !== 'x' && next){
+        cell.style.borderColor = 'var(--warm-orange)';
+        cell.addEventListener('click', ()=>{
+          L.cells[idx] = statusKey(next.class, next.no);
+          seqHistory.push(idx);
+          renderSeatEditor();
+        });
+      }
+      return cell;
+    }
     cell.appendChild(pick);
     return cell;
   }));
-  const left = list.filter(st => !used.has(st.no));
+  const left = list.filter(st => !used.has(statusKey(st.class, st.no)));
   $('seatEditInfo').textContent = left.length
-    ? `還有 ${left.length} 位沒排:${left.map(st => st.no).join('、')}(沒排到的同學不會出現在座位圖,下一步的名單裡會一起列出)`
-    : `全班 ${list.length} 位都排好了。`;
+    ? `還有 ${left.length} 位沒排:${left.map(seatNoText).join('、')}(沒排到的同學不會出現在座位圖,下一步的名單裡會一起列出)`
+    : `${list.length} 位同學都排好了。`;
 }
 $('seatEnable').addEventListener('change', renderSeatEditor);
-$('seatClass').addEventListener('change', renderSeatEditor);
-$('seatBoard').addEventListener('change', ()=>{ draftLayout($('seatClass').value).board = $('seatBoard').value; renderSeatEditor(); });
+$('seatSeqBtn').addEventListener('click', ()=>{
+  seqClass = seqClass ? null : ($('seatSeqClass').value || classes[0]);
+  seqHistory = [];
+  renderSeatEditor();
+});
+$('seatUndoBtn').addEventListener('click', ()=>{
+  const idx = seqHistory.pop();
+  if(idx != null) draftLayout().cells[idx] = '';
+  renderSeatEditor();
+});
+$('seatBoard').addEventListener('change', ()=>{ draftLayout().board = $('seatBoard').value; renderSeatEditor(); });
 ['seatCols', 'seatRows'].forEach(id => $(id).addEventListener('change', ()=>{
-  const L = draftLayout($('seatClass').value);
   const clamp = v => Math.max(1, Math.min(10, parseInt(v, 10) || 1));
-  resizeLayout(L, clamp($('seatCols').value), clamp($('seatRows').value));
+  resizeLayout(draftLayout(), clamp($('seatCols').value), clamp($('seatRows').value));
   renderSeatEditor();
 }));
 $('seatAutoBtn').addEventListener('click', ()=>{
-  const cls = $('seatClass').value, L = draftLayout(cls);
-  const used = new Set(L.cells.filter(v => seatStudent(cls, v)));
-  const left = studentsOf(cls).filter(st => !used.has(st.no))
-    .sort((a, b) => (parseInt(a.no) || 0) - (parseInt(b.no) || 0));
-  L.cells = L.cells.map(v => (!v && left.length) ? left.shift().no : v);
+  const L = draftLayout();
+  const used = new Set(L.cells.filter(v => seatStudent(v)));
+  const left = allStudentsSorted().map(st => statusKey(st.class, st.no)).filter(k => !used.has(k));
+  L.cells = L.cells.map(v => (!seatStudent(v) && v !== 'x' && left.length) ? left.shift() : v);
   renderSeatEditor();
 });
 $('seatClearBtn').addEventListener('click', ()=>{
-  const L = draftLayout($('seatClass').value);
+  const L = draftLayout();
   L.cells = L.cells.map(() => '');
   renderSeatEditor();
 });
 $('settingsBtn').addEventListener('click', ()=>{
   seatDraft = JSON.parse(JSON.stringify(seatCfg));
+  seqClass = null; seqHistory = [];
   $('seatEnable').checked = !!seatDraft.enabled;
   renderSeatEditor();
 });
