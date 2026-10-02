@@ -2387,8 +2387,11 @@ async function init(){
     if(!j.ok) throw new Error(j.error || '雲端處理失敗');
     return j;
   }
-  // ClassroomAPP 的同學代號是「科別+座號+姓名」(座號兩位數),用「座號+姓名」對到點名簿名單
-  const pad = no => String(parseInt(no, 10) || no).padStart(2, '0');
+  // ClassroomAPP 的同學代號是「科別+座號(兩位數)+姓名」,拆出座號和姓名
+  const parseKey = k => {
+    const m = String(k).match(/^(.*)(\d\d)(\D+)$/);
+    return m ? {no: Number(m[2]), name: m[3].trim()} : null;
+  };
   async function importLeave(){
     const link = readLink();
     if(!link) return;
@@ -2399,11 +2402,19 @@ async function init(){
       toast('帶入請假失敗:' + e.message);
       return;
     }
+    // 座號和姓名都完全一樣才算同一人;任一邊對到不只一個人就不帶,寧可漏帶也不要帶錯
     const keyOf = {};   // ClassroomAPP 代號 → 點名簿的 statusKey
+    const used = {};
     (students.students || []).forEach(k=>{
-      const hits = rosterRaw.filter(s => s.name && k.endsWith(pad(s.no) + s.name));
-      if(hits.length === 1) keyOf[k] = statusKey(hits[0].class, hits[0].no);
+      const p = parseKey(k);
+      if(!p) return;
+      const hits = rosterRaw.filter(s => s.name && String(s.name).trim() === p.name && Number(s.no) === p.no);
+      if(hits.length !== 1) return;
+      const sk = statusKey(hits[0].class, hits[0].no);
+      keyOf[k] = sk;
+      used[sk] = (used[sk] || 0) + 1;
     });
+    Object.keys(keyOf).forEach(k=>{ if(used[keyOf[k]] > 1) delete keyOf[k]; });
     if(!Object.keys(keyOf).length) return;   // 名單完全對不上:不是這個班,安靜結束
 
     const day = $('dateInput').value.replace(/-/g, '/');
@@ -2415,7 +2426,7 @@ async function init(){
       if(!st || !covers || !keyOf[x.key]) return;
       const sk = keyOf[x.key];
       const cur = currentStatus[sk] || '出席';
-      const label = x.key.replace(/^\D*/, '');
+      const p = parseKey(x.key), label = String(p.no).padStart(2, '0') + p.name;
       if(cur === '出席'){ currentStatus[sk] = st; done.push(label + ' ' + st); }
       else if(cur !== st) skipped.push(label + '(已點' + cur + ')');
     });
