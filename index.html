@@ -2730,6 +2730,7 @@ async function init(){
   const logo = document.querySelector('header .title-logo');
   if(!logo) return;
   const KEY = 'cra-link';
+  const CRA_URL = 'https://script.google.com/macros/s/AKfycbxx3fbtNORxbXP7M0pywVkVNcDi9vKiqggLWVckq6xJlbVOTx9-btsNRDXFgmj749VLFQ/exec';   // 商一甲 ClassroomAPP 的雲端網址(預先填好)
   const MAP = {事假:'事假', 病假:'病假', 公假:'公假', 喪假:'喪假', 生理假:'病假', 身心調適假:'事假'};
   let taps = 0, timer = null;
   logo.addEventListener('click', ()=>{
@@ -2759,11 +2760,11 @@ async function init(){
     box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;';
     box.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px;width:100%;max-width:360px;font-size:14px;">'
       + '<div style="margin-bottom:6px;">雲端網址</div><input id="craUrl" style="width:100%;box-sizing:border-box;padding:8px;margin-bottom:10px;">'
-      + '<div style="margin-bottom:6px;">導師密碼</div><input id="craPw" type="password" style="width:100%;box-sizing:border-box;padding:8px;margin-bottom:14px;">'
+      + '<div style="margin-bottom:6px;">開發者專用（商一甲APP導師密碼）</div><input id="craPw" type="password" style="width:100%;box-sizing:border-box;padding:8px;margin-bottom:14px;">'
       + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
       + '<button id="craClear" class="btn-secondary">清除</button><button id="craCancel" class="btn-secondary">取消</button><button id="craSave" class="btn-secondary">儲存</button></div></div>';
     document.body.appendChild(box);
-    box.querySelector('#craUrl').value = link.url || '';
+    box.querySelector('#craUrl').value = link.url || CRA_URL;
     box.querySelector('#craPw').value = link.token || '';
     const close = ()=>box.remove();
     box.querySelector('#craCancel').onclick = close;
