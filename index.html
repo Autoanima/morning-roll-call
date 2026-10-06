@@ -2819,8 +2819,9 @@ async function init(){
     const done = [], skipped = [];
     (leave.rows || []).forEach(x=>{
       const st = MAP[x.type];
-      // 這一天的早自習要在請假時段裡:開始日在今天以前,或今天從早自習就開始請
-      const covers = (x.from < day || (x.from === day && Number(x.fromP) === 0)) && day <= x.to;
+      // 這一天早上就不在:開始日在今天以前,或今天從早自習/第 1 節就開始請
+      // (ClassroomAPP 登記請假時開始節次預設是第 1 節,整天請假的多半是 第1節～第7節)
+      const covers = (x.from < day || (x.from === day && Number(x.fromP) <= 1)) && day <= x.to;
       if(!st || !covers || !keyOf[x.key]) return;
       const sk = keyOf[x.key];
       const cur = currentStatus[sk] || '出席';
